@@ -21,6 +21,7 @@
 
 import copy
 import logging
+import logging.handlers
 import os
 import os.path
 import pprint
@@ -31,12 +32,15 @@ import termios
 import traceback
 
 
+__version__ = '0.1'
+
+
 # create logger
 logger = logging.getLogger('pinentry')
 logger.setLevel(logging.WARNING)
-_h = logging.FileHandler('/tmp/pinentry.log')
+_h = logging.handlers.SysLogHandler(address='/dev/log')
 _h.setLevel(logging.DEBUG)
-_f = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+_f = logging.Formatter('%(name)s: %(levelname)s: %(message)s')
 _h.setFormatter(_f)
 logger.addHandler(_h)
 del _h, _f
@@ -368,6 +372,20 @@ class PinEntry (object):
 
 
 if __name__ == '__main__':
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__, version=__version__)
+    parser.add_argument(
+        '-V', '--verbose', action='count', default=0,
+        help='increase verbosity')
+
+    args = parser.parse_args()
+
+    if args.verbose >= 2:
+        logger.setLevel(logging.DEBUG)
+    elif args.verbose >= 1:
+        logger.setLevel(logging.INFO)
+
     try:
         p = PinEntry()
         p.run()
