@@ -378,6 +378,9 @@ if __name__ == '__main__':
     parser.add_argument(
         '-V', '--verbose', action='count', default=0,
         help='increase verbosity')
+    parser.add_argument(
+        '--display',
+        help='set X display (ignored by this implementation)')
 
     args = parser.parse_args()
 
