@@ -70,7 +70,20 @@ class AssuanClient (object):
         except IOError:
             if not self.stop:
                 raise
-        return list(self.responses())
+        responses = list(self.responses())
+        if responses[-1].type == 'ERR':
+            eresponse = responses[-1]
+            fields = eresponse.parameters.split(' ', 1)
+            code = int(fields[0])
+            if len(fields) > 1:
+                message = fields[1].strip()
+            else:
+                message = None
+            error = _error.AssuanError(code=code, message=message)
+            error.request = request
+            error.responses = responses
+            raise error
+        return responses
 
     def responses(self):
         while True:

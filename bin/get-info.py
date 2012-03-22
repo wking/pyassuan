@@ -40,11 +40,12 @@ if __name__ == '__main__':
     try:
         response = client.read_response()
         assert response.type == 'OK', response
-        responses = client.make_request(_common.Request('HELP'))
-        responses = client.make_request(_common.Request('HELP GETINFO'))
+        client.make_request(_common.Request('HELP'))
+        client.make_request(_common.Request('HELP GETINFO'))
         for attribute in ['version', 'pid', 'socket_name', 'ssh_socket_name']:
-            responses = client.make_request(
-                _common.Request('GETINFO', attribute))
+            client.make_request(_common.Request('GETINFO', attribute))
     finally:
-        responses = client.make_request(_common.Request('BYE'))
+        client.make_request(_common.Request('BYE'))
         client.disconnect()
+        socket.shutdown(_socket.SHUT_RDWR)
+        socket.close()
