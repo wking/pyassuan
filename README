@@ -2,17 +2,12 @@ Python module and tools for communicating in the Assuan_ protocol.
 
 There are a number of GnuPG_ wrappers for python `out there`__, but
 they mostly work via the ``gpg`` executable.  This is an attempt to
-cut to the chase and speak directly to ``gpg-agent``, which offers a
-number of advantages::
+cut to the chase and speak directly to ``gpg-agent``.  Unfortunately,
+``gpg`` only uses ``gpg-agent`` for passphrase caching, not
+encryption.  This means that speaking directly to ``gpg-agent``
+doesn't help you do much cryptography.
 
 __ wrappers_
-
-* No need to spawn ``gpg`` every time you want to do something
-  cryptographic.
-* No need to `do anything fancy with file descriptors`__ to verify
-  detached signatures.
-
-__ enable-special-filenames_
 
 Installation
 ============
