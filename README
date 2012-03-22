@@ -1,0 +1,92 @@
+Python module and tools for communicating in the Assuan_ protocol.
+
+There are a number of GnuPG_ wrappers for python `out there`__, but
+they mostly work via the ``gpg`` executable.  This is an attempt to
+cut to the chase and speak directly to ``gpg-agent``, which offers a
+number of advantages::
+
+__ wrappers_
+
+* No need to spawn ``gpg`` every time you want to do something
+  cryptographic.
+* No need to `do anything fancy with file descriptors`__ to verify
+  detached signatures.
+
+__ enable-special-filenames_
+
+Installation
+============
+
+Packages
+--------
+
+Gentoo
+~~~~~~
+
+I've packaged ``pyassuan`` for Gentoo_.  You need layman_ and
+my `wtk overlay`_.  Install with::
+
+  # emerge -av app-portage/layman
+  # layman --add wtk
+  # emerge -av dev-python/pyassuan
+
+Dependencies
+------------
+
+``pyassuan`` is a simple package with no external dependencies outside
+the Python 3 standard library.
+
+Installing by hand
+------------------
+
+``pgp-mime`` is available as a Git_ repository::
+
+  $ git clone git://tremily.us/pgp-mime.git
+
+See the homepage_ for details.  To install the checkout, run the
+standard::
+
+  $ python setup.py install
+
+Usage
+=====
+
+Checkout the docstrings and the examples in ``bin``.
+
+Testing
+=======
+
+Run the internal unit tests using nose_::
+
+  $ nosetests --with-doctest --doctest-tests pgp-mime
+
+If a Python-3-version of ``nosetests`` is not the default on your
+system, you may need to try something like::
+
+  $ nosetests-3.2 --with-doctest --doctest-tests pgp-mime
+
+Licence
+=======
+
+This project is distributed under the `GNU General Public License
+Version 3`_ or greater.
+
+Author
+======
+
+W. Trevor King
+wking@drexel.edu
+
+
+.. _Assuan: http://www.gnupg.org/documentation/manuals/assuan/
+.. _GnuPG: http://www.gnupg.org/
+.. _wrappers: http://wiki.python.org/moin/GnuPrivacyGuard
+.. _enable-special-filenames:
+  http://lists.gnupg.org/pipermail/gnupg-devel/2002-November/019343.html
+.. _Gentoo: http://www.gentoo.org/
+.. _layman: http://layman.sourceforge.net/
+.. _wtk overlay: http://blog.tremily.us/posts/Gentoo_overlay/
+.. _Git: http://git-scm.com/
+.. _homepage: http://blog.tremily.us/posts/pyassuan/
+.. _nose: http://readthedocs.org/docs/nose/en/latest/
+.. _GNU General Public License Version 3: http://www.gnu.org/licenses/gpl.html
