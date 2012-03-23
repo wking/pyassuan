@@ -68,8 +68,7 @@ class AssuanClient (object):
         try:
             self.output.flush()
         except IOError:
-            if not self.stop:
-                raise
+            raise
         responses = list(self.responses())
         if responses[-1].type == 'ERR':
             eresponse = responses[-1]
