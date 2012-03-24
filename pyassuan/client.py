@@ -60,7 +60,7 @@ class AssuanClient (object):
         self.logger.info('S: {}'.format(response))
         return response
 
-    def make_request(self, request):
+    def make_request(self, request, response=True):
         rstring = str(request)
         self.logger.info('C: {}'.format(rstring))
         self.output.write(rstring)
@@ -69,6 +69,10 @@ class AssuanClient (object):
             self.output.flush()
         except IOError:
             raise
+        if response:
+            return self.get_responses(request=request)
+
+    def get_responses(self, request=None):
         responses = list(self.responses())
         if responses[-1].type == 'ERR':
             eresponse = responses[-1]
@@ -79,14 +83,23 @@ class AssuanClient (object):
             else:
                 message = None
             error = _error.AssuanError(code=code, message=message)
-            error.request = request
+            if request is not None:
+                error.request = request
             error.responses = responses
             raise error
-        return responses
+        data = []
+        for response in responses:
+            if response.type == 'D':
+                data.append(response.parameters)
+        if data:
+            data = ''.join(data)
+        else:
+            data = None
+        return (responses, data)
 
     def responses(self):
         while True:
             response = self.read_response()
             yield response
-            if response.type in ['OK', 'ERR']:
+            if response.type not in ['S', '#', 'D']:
                 break
