@@ -60,7 +60,7 @@ class AssuanClient (object):
         self.logger.info('S: {}'.format(response))
         return response
 
-    def make_request(self, request, response=True):
+    def make_request(self, request, response=True, expect=['OK']):
         rstring = str(request)
         self.logger.info('C: {}'.format(rstring))
         self.output.write(rstring)
@@ -70,9 +70,9 @@ class AssuanClient (object):
         except IOError:
             raise
         if response:
-            return self.get_responses(request=request)
+            return self.get_responses(request=request, expect=expect)
 
-    def get_responses(self, request=None):
+    def get_responses(self, request=None, expect=['OK']):
         responses = list(self.responses())
         if responses[-1].type == 'ERR':
             eresponse = responses[-1]
@@ -87,6 +87,8 @@ class AssuanClient (object):
                 error.request = request
             error.responses = responses
             raise error
+        if expect:
+            assert responses[-1].type in expect, [str(r) for r in responses]
         data = []
         for response in responses:
             if response.type == 'D':
