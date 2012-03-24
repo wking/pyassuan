@@ -60,6 +60,11 @@ system, you may need to try something like::
 
   $ nosetests-3.2 --with-doctest --doctest-tests pgp-mime
 
+To test running servers by hand, you can use `gpg-connect-agent`_.
+Despite the name, this program can connect to any Assuan server::
+
+  $ gpg-connect-agent --raw-socket name
+
 Licence
 =======
 
@@ -84,4 +89,6 @@ wking@drexel.edu
 .. _Git: http://git-scm.com/
 .. _homepage: http://blog.tremily.us/posts/pyassuan/
 .. _nose: http://readthedocs.org/docs/nose/en/latest/
+.. _gpg-connect-agent:
+  http://www.gnupg.org/documentation/manuals/gnupg-devel/gpg_002dconnect_002dagent.html
 .. _GNU General Public License Version 3: http://www.gnu.org/licenses/gpl.html
