@@ -8,6 +8,7 @@ import re as _re
 from . import error as _error
 
 
+LINE_LENGTH = 1002  # 1000 + [CR,]LF
 _ENCODE_REGEXP = _re.compile(
     '(' + '|'.join(['%', '\r', '\n']) + ')')
 _DECODE_REGEXP = _re.compile('(%[0-9A-F]{2})')
@@ -83,13 +84,18 @@ class Request (object):
       ...
     pyassuan.error.AssuanError: 170 Invalid request
     """
-    def __init__(self, command=None, parameters=None):
+    def __init__(self, command=None, parameters=None, encoded=False):
         self.command = command
         self.parameters = parameters
+        self.encoded = encoded
 
     def __str__(self):
         if self.parameters:
-            return '{} {}'.format(self.command, encode(self.parameters))
+            if self.encoded:
+                encoded_parameters = self.parameters
+            else:
+                encoded_parameters = encode(self.parameters)
+            return '{} {}'.format(self.command, encoded_parameters)
         return self.command
 
     def from_string(self, string):

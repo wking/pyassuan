@@ -60,7 +60,7 @@ class AssuanClient (object):
         self.logger.info('S: {}'.format(response))
         return response
 
-    def make_request(self, request, response=True, expect=['OK']):
+    def _write_request(self, request):
         rstring = str(request)
         self.logger.info('C: {}'.format(rstring))
         self.output.write(rstring)
@@ -68,11 +68,14 @@ class AssuanClient (object):
         try:
             self.output.flush()
         except IOError:
-            raise
-        if response:
-            return self.get_responses(request=request, expect=expect)
+            raise        
 
-    def get_responses(self, request=None, expect=['OK']):
+    def make_request(self, request, response=True, expect=['OK']):
+        self._write_request(request=request)
+        if response:
+            return self.get_responses(requests=[request], expect=expect)
+
+    def get_responses(self, requests=None, expect=['OK']):
         responses = list(self.responses())
         if responses[-1].type == 'ERR':
             eresponse = responses[-1]
@@ -83,8 +86,8 @@ class AssuanClient (object):
             else:
                 message = None
             error = _error.AssuanError(code=code, message=message)
-            if request is not None:
-                error.request = request
+            if requests is not None:
+                error.requests = requests
             error.responses = responses
             raise error
         if expect:
@@ -105,3 +108,32 @@ class AssuanClient (object):
             yield response
             if response.type not in ['S', '#', 'D']:
                 break
+
+    def send_data(self, data=None, response=True, expect=['OK']):
+        """Iterate through requests necessary to send ``data`` to a server.
+
+        http://www.gnupg.org/documentation/manuals/assuan/Client-requests.html
+        """
+        requests = []
+        if data:
+            encoded_data = _common.encode(data)
+            start = 0
+            stop = min(_common.LINE_LENGTH-4, len(encoded_data)) # 'D ', CR, CL
+            self.logger.debug('sending {} bytes of encoded data'.format(
+                    len(encoded_data)))
+            while stop > start:
+                d = encoded_data[start:stop]
+                request = _common.Request(
+                    command='D', parameters=encoded_data[start:stop],
+                    encoded=True)
+                requests.append(request)
+                self.logger.debug('send {} byte chunk'.format(stop-start))
+                self._write_request(request=request)
+                start = stop
+                stop = start + min(_common.LINE_LENGTH-4,
+                                   len(encoded_data) - start)
+        request = _common.Request('END')
+        requests.append(request)
+        self._write_request(request=request)
+        if response:
+            return self.get_responses(requests=requests, expect=expect)
