@@ -115,8 +115,13 @@ class PinEntry (_server.AssuanServer):
         self.logger.debug('options:\n{}'.format(_pprint.pformat(self.options)))
         tty_name = None
         if self.override_ttyname:
-            tty_name = _os.getenv('TTY_NAME')
-        if not tty_name:  # override not requested, or fall back on undefined
+            tty_name = _os.getenv('GPG_TTY')
+            if tty_name:
+                self.logger.debug('override ttyname with {}'.format(tty_name))
+            else:
+                self.logger.debug(
+                    'GPG_TTY not set, fallback to ttyname option')
+        if not tty_name:
             tty_name = self.options.get('ttyname', None)
         if tty_name:
             self.connection['tpgrp'] = self._get_pgrp(tty_name)
@@ -346,14 +351,13 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    p = PinEntry()
+    p = PinEntry(override_ttyname=True)
 
     if args.verbose:
         p.logger.setLevel(max(
                 logging.DEBUG, p.logger.level - 10*args.verbose))
 
     try:
-        p = PinEntry(override_ttyname=True)
         p.run()
     except:
         p.logger.error(
