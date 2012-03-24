@@ -72,7 +72,7 @@ class AssuanServer (object):
             self.output = None
 
     def handle_requests(self):        
-        self.send_response(self, _common.Response('OK', 'Your orders please'))
+        self.send_response(_common.Response('OK', 'Your orders please'))
         self.output.flush()
         while not self.stop:
             line = self.input.readline()

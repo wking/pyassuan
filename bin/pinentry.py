@@ -192,7 +192,7 @@ class PinEntry (_server.AssuanServer):
             fd_path = _os_path.join(path, 'fd', '0')
             try:
                 link = _os.readlink(fd_path)
-            except OSError, e:
+            except OSError as e:
                 self.logger.debug('not our process: {}'.format(e))
                 continue  # permission denied (not one of our processes)
             if link != tty_name:
