@@ -78,15 +78,6 @@ class PinEntry (_server.AssuanServer):
       S: OK
       C: BYE
       S: OK closing connection
-
-    Some drivers (e.g. ``gpgme``) have ``gpg-agent`` set ``ttyname``
-    to the terminal running ``gpgme``.  I don't like this, because the
-    pinentry program doesn't always play nicely with whatever is going
-    on in that terminal.  I'd rather have a free terminal that had
-    just been running Bash, and I export ``GPG_TTY`` to point to the
-    desired terminal.  To ignore the requested ``ttyname`` and use
-    whatever is in ``GPG_TTY``, initialize with ``override_ttyname``
-    set to ``True``.
     """
     _digit_regexp = _re.compile(r'\d+')
 
@@ -94,14 +85,13 @@ class PinEntry (_server.AssuanServer):
     _tpgrp_regexp = _re.compile(r'\d+ \(\S+\) . \d+ \d+ \d+ \d+ (\d+)')
 
     def __init__(self, name='pinentry', strict_options=False,
-                 single_request=True, override_ttyname=False, **kwargs):
+                 single_request=True, **kwargs):
         self.strings = {}
         self.connection = {}
         super(PinEntry, self).__init__(
             name=name, strict_options=strict_options,
             single_request=single_request, **kwargs)
         self.valid_options.append('ttyname')
-        self.override_ttyname = override_ttyname
 
     def reset(self):
         super(PinEntry, self).reset()
@@ -113,16 +103,7 @@ class PinEntry (_server.AssuanServer):
     def _connect(self):
         self.logger.info('connecting to user')
         self.logger.debug('options:\n{}'.format(_pprint.pformat(self.options)))
-        tty_name = None
-        if self.override_ttyname:
-            tty_name = _os.getenv('GPG_TTY')
-            if tty_name:
-                self.logger.debug('override ttyname with {}'.format(tty_name))
-            else:
-                self.logger.debug(
-                    'GPG_TTY not set, fallback to ttyname option')
-        if not tty_name:
-            tty_name = self.options.get('ttyname', None)
+        tty_name = self.options.get('ttyname', None)
         if tty_name:
             self.connection['tpgrp'] = self._get_pgrp(tty_name)
             self.logger.info(
@@ -351,7 +332,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    p = PinEntry(override_ttyname=True)
+    p = PinEntry()
 
     if args.verbose:
         p.logger.setLevel(max(
