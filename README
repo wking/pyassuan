@@ -34,9 +34,9 @@ the Python 3 standard library.
 Installing by hand
 ------------------
 
-``pgp-mime`` is available as a Git_ repository::
+``pyassuan`` is available as a Git_ repository::
 
-  $ git clone git://tremily.us/pgp-mime.git
+  $ git clone git://tremily.us/pyassuan.git
 
 See the homepage_ for details.  To install the checkout, run the
 standard::
@@ -53,12 +53,12 @@ Testing
 
 Run the internal unit tests using nose_::
 
-  $ nosetests --with-doctest --doctest-tests pgp-mime
+  $ nosetests --with-doctest --doctest-tests pyassuan
 
 If a Python-3-version of ``nosetests`` is not the default on your
 system, you may need to try something like::
 
-  $ nosetests-3.2 --with-doctest --doctest-tests pgp-mime
+  $ nosetests-3.2 --with-doctest --doctest-tests pyassuan
 
 To test running servers by hand, you can use `gpg-connect-agent`_.
 Despite the name, this program can connect to any Assuan server::
