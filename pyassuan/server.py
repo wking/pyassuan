@@ -92,7 +92,10 @@ class AssuanServer (object):
             line = self.input.readline()
             if not line:
                 break  # EOF
-            if not line.endswith('\n'):
+            if len(line) > _common.LINE_LENGTH:
+                self.raise_error(
+                    _error.AssuanError(message='Line too long'))
+            if not line.endswith(b'\n'):
                 self.logger.info('C: {}'.format(line))
                 self.send_error_response(
                     _error.AssuanError(message='Invalid request'))
@@ -101,7 +104,7 @@ class AssuanServer (object):
             self.logger.info('C: {}'.format(line))
             request = _common.Request()
             try:
-                request.from_string(line)
+                request.from_bytes(line)
             except _error.AssuanError as e:
                 self.send_error_response(e)
                 continue
@@ -134,8 +137,8 @@ class AssuanServer (object):
         """For internal use by ``.handle_requests()``
         """
         rstring = str(response)
-        self.logger.info('S: {}'.format(rstring))
-        self.output.write(rstring)
+        self.logger.info('S: {}'.format(response))
+        self.output.write(bytes(response))
         self.output.write('\n')
         try:
             self.output.flush()

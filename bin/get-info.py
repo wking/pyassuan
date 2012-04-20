@@ -24,6 +24,7 @@ import socket as _socket
 from pyassuan import __version__
 from pyassuan import client as _client
 from pyassuan import common as _common
+from pyassuan import error as _error
 
 
 if __name__ == '__main__':
@@ -48,8 +49,8 @@ if __name__ == '__main__':
 
     socket = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
     socket.connect(args.filename)
-    client.input = socket.makefile('r')
-    client.output = socket.makefile('w')
+    client.input = socket.makefile('rb')
+    client.output = socket.makefile('wb')
     client.connect()
     try:
         response = client.read_response()
@@ -57,7 +58,13 @@ if __name__ == '__main__':
         client.make_request(_common.Request('HELP'))
         client.make_request(_common.Request('HELP GETINFO'))
         for attribute in ['version', 'pid', 'socket_name', 'ssh_socket_name']:
-            client.make_request(_common.Request('GETINFO', attribute))
+            try:
+                client.make_request(_common.Request('GETINFO', attribute))
+            except _error.AssuanError as e:
+                if e.message.startswith('No data'):
+                    pass
+                else:
+                    raise
     finally:
         client.make_request(_common.Request('BYE'))
         client.disconnect()

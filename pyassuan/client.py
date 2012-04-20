@@ -60,14 +60,17 @@ class AssuanClient (object):
         if not line:
             self.raise_error(
                 _error.AssuanError(message='IPC accept call failed'))
-        if not line.endswith('\n'):
+        if len(line) > _common.LINE_LENGTH:
+            self.raise_error(
+                _error.AssuanError(message='Line too long'))
+        if not line.endswith(b'\n'):
+            self.logger.info('S: {}'.format(line))
             self.raise_error(
                 _error.AssuanError(message='Invalid response'))
         line = line[:-1]  # remove trailing newline
-        # TODO, line length?
         response = _common.Response()
         try:
-            response.from_string(line)
+            response.from_bytes(line)
         except _error.AssuanError as e:
             self.logger.error(str(e))
             raise
@@ -75,10 +78,9 @@ class AssuanClient (object):
         return response
 
     def _write_request(self, request):
-        rstring = str(request)
-        self.logger.info('C: {}'.format(rstring))
-        self.output.write(rstring)
-        self.output.write('\n')
+        self.logger.info('C: {}'.format(request))
+        self.output.write(bytes(request))
+        self.output.write(b'\n')
         try:
             self.output.flush()
         except IOError:
@@ -111,7 +113,7 @@ class AssuanClient (object):
             if response.type == 'D':
                 data.append(response.parameters)
         if data:
-            data = ''.join(data)
+            data = b''.join(data)
         else:
             data = None
         return (responses, data)
