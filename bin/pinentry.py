@@ -216,9 +216,9 @@ class PinEntry (_server.AssuanServer):
 
     def _handle_GETINFO(self, arg):
         if arg == 'pid':
-            yield _common.Response('D', str(_os.getpid()))
+            yield _common.Response('D', str(_os.getpid()).encode('ascii'))
         elif arg == 'version':
-            yield _common.Response('D', __version__)
+            yield _common.Response('D', __version__.encode('ascii'))
         else:
             raise _error.AssuanError(message='Invalid parameter')
         yield _common.Response('OK')
@@ -283,7 +283,7 @@ class PinEntry (_server.AssuanServer):
             pin = self._prompt(self.strings['prompt'], add_colon=False)
         finally:
             self._disconnect()
-        yield _common.Response('D', pin)
+        yield _common.Response('D', pin.encode('ascii'))
         yield _common.Response('OK')
 
     def _handle_CONFIRM(self, arg):
