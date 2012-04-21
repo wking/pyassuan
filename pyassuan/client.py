@@ -40,10 +40,10 @@ class AssuanClient (object):
     def connect(self):
         if not self.input:
             self.logger.info('read from stdin')
-            self.input = _sys.stdin
+            self.input = _sys.stdin.buffer
         if not self.output:
             self.logger.info('write to stdout')
-            self.output = _sys.stdout
+            self.output = _sys.stdout.buffer
 
     def disconnect(self):
         if self.close_on_disconnect:

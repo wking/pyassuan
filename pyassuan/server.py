@@ -74,10 +74,10 @@ class AssuanServer (object):
     def connect(self):
         if not self.input:
             self.logger.info('read from stdin')
-            self.input = _sys.stdin
+            self.input = _sys.stdin.buffer
         if not self.output:
             self.logger.info('write to stdout')
-            self.output = _sys.stdout
+            self.output = _sys.stdout.buffer
 
     def disconnect(self):
         if self.close_on_disconnect:
@@ -139,7 +139,7 @@ class AssuanServer (object):
         rstring = str(response)
         self.logger.info('S: {}'.format(response))
         self.output.write(bytes(response))
-        self.output.write('\n')
+        self.output.write(b'\n')
         try:
             self.output.flush()
         except IOError:
@@ -291,8 +291,8 @@ class AssuanSocketServer (object):
 
     def spawn_thread(self, name, socket, address):
         server = self.server(name=name, **self.kwargs)
-        server.input = socket.makefile('r')
-        server.output = socket.makefile('w')
+        server.input = socket.makefile('rb')
+        server.output = socket.makefile('wb')
         thread = _threading.Thread(target=server.run, name=name)
         thread.start()
         self.threads.append(thread)
