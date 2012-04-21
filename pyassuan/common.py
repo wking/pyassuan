@@ -153,11 +153,7 @@ class Request (object):
     def from_bytes(self, line):
         if len(line) > 1000:  # TODO: byte-vs-str and newlines?
             raise _error.AssuanError(message='Line too long')
-        if line.startswith(b'D '):
-            self.command = 'D'
-            self.parameters = decode(line[2:])
-        else:
-            line = str(line, encoding='utf-8')
+        line = str(line, encoding='utf-8')
         match = _REQUEST_REGEXP.match(line)
         if not match:
             raise _error.AssuanError(message='Invalid request')
