@@ -23,7 +23,7 @@ import logging as _logging
 import logging.handlers as _logging_handlers
 
 
-__version__ = '0.1'
+__version__ = '0.2'
 
 LOG = _logging.getLogger('pyassuan')
 LOG.setLevel(_logging.ERROR)
