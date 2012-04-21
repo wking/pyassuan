@@ -2,12 +2,11 @@ Python module and tools for communicating in the Assuan_ protocol.
 
 There are a number of GnuPG_ wrappers for python `out there`__, but
 they mostly work via the ``gpg`` executable.  This is an attempt to
-cut to the chase and speak directly to ``gpg-agent``.  Unfortunately,
-``gpg`` only uses ``gpg-agent`` for passphrase caching, not
-encryption.  This means that speaking directly to ``gpg-agent``
-doesn't help you do much cryptography.
+cut to the chase and speak directly to ``gpgme-tool`` (source__) over
+a well-defined socket protocol.
 
 __ wrappers_
+__ gpgme-tool_
 
 Installation
 ============
@@ -81,6 +80,8 @@ wking@tremily.us
 .. _Assuan: http://www.gnupg.org/documentation/manuals/assuan/
 .. _GnuPG: http://www.gnupg.org/
 .. _wrappers: http://wiki.python.org/moin/GnuPrivacyGuard
+.. _gpgme-tool:
+  http://git.gnupg.org/cgi-bin/gitweb.cgi?p=gpgme.git;a=blob;f=src/gpgme-tool.c;hb=HEAD
 .. _enable-special-filenames:
   http://lists.gnupg.org/pipermail/gnupg-devel/2002-November/019343.html
 .. _Gentoo: http://www.gentoo.org/
