@@ -17,7 +17,9 @@
 """Items common to both the client and server
 """
 
+import array as _array
 import re as _re
+import socket as _socket
 
 from . import error as _error
 
@@ -268,3 +270,40 @@ def error_response(error):
     ERR 1 General error
     """
     return Response(type='ERR', parameters=str(error))
+
+
+def send_fds(socket, msg, fds):
+    """Send a file descriptor over a Unix socket using ``sendmsg``.
+
+    ``sendmsg`` suport requires Python >= 3.3.
+
+    Code from
+    http://docs.python.org/dev/library/socket.html#socket.socket.sendmsg
+
+    Assuan equivalent is
+    http://www.gnupg.org/documentation/manuals/assuan/Client-code.html#function-assuan_005fsendfd
+    """
+    return socket.sendmsg(
+        [msg],
+        [(_socket.SOL_SOCKET, _socket.SCM_RIGHTS, _array.array('i', fds))])
+
+def receive_fds(socket, msglen, maxfds):
+    """Recieve file descriptors using ``recvmsg``.
+
+    ``recvmsg`` suport requires Python >= 3.3.
+
+    Code from http://docs.python.org/dev/library/socket.html
+
+    Assuan equivalent is
+    http://www.gnupg.org/documentation/manuals/assuan/Client-code.html#fun_002dassuan_005freceivedfd
+    """
+    fds = _array.array('i')   # Array of ints
+    msg,ancdata,flags,addr = socket.recvmsg(
+        msglen, _socket.CMSG_LEN(maxfds * fds.itemsize))
+    for cmsg_level,cmsg_type,cmsg_data in ancdata:
+        if (cmsg_level == _socket.SOL_SOCKET and
+            cmsg_type == _socket.SCM_RIGHTS):
+            # Append data, ignoring any truncated integers at the end.
+            fds.fromstring(
+                cmsg_data[:len(cmsg_data) - (len(cmsg_data) % fds.itemsize)])
+    return (msg, list(fds))
