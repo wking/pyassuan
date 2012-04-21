@@ -220,7 +220,7 @@ class Response (object):
     def __bytes__(self):
         if self.parameters:
             if self.type == 'D':
-                return b'{} {}'.format(b'D', self.parameters)
+                return b' '.join((b'D', self.parameters))
             else:
                 return '{} {}'.format(
                     self.type, encode(self.parameters)).encode('utf-8')
