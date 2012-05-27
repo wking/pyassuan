@@ -115,6 +115,7 @@ class AssuanServer (object):
             handle = getattr(
                 self, '_handle_{}'.format(request.command))
         except AttributeError:
+            self.logger.warn('unknown command: {}'.format(request.command))
             self.send_error_response(
                 _error.AssuanError(message='Unknown command'))
             return
