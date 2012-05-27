@@ -28,8 +28,8 @@ LINE_LENGTH = 1002  # 1000 + [CR,]LF
 _ENCODE_PATTERN = '(' + '|'.join(['%', '\r', '\n']) + ')'
 _ENCODE_STR_REGEXP = _re.compile(_ENCODE_PATTERN)
 _ENCODE_BYTE_REGEXP = _re.compile(_ENCODE_PATTERN.encode('ascii'))    
-_DECODE_STR_REGEXP = _re.compile('(%[0-9A-F]{2})')
-_DECODE_BYTE_REGEXP = _re.compile(b'(%[0-9A-F]{2})')
+_DECODE_STR_REGEXP = _re.compile('(%[0-9A-Fa-f]{2})')
+_DECODE_BYTE_REGEXP = _re.compile(b'(%[0-9A-Fa-f]{2})')
 _REQUEST_REGEXP = _re.compile('^(\w+)( *)(.*)\Z')
 
 
