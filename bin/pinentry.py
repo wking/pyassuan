@@ -256,7 +256,7 @@ class PinEntry (_server.AssuanServer):
 
         This indicator is updated as the passphrase is typed.  The
         clients needs to implement an inquiry named "QUALITY" which
-        gets passed the current passpharse (percent-plus escaped) and
+        gets passed the current passphrase (percent-plus escaped) and
         should send back a string with a single numerical vauelue
         between -100 and 100.  Negative values will be displayed in
         red.
@@ -273,13 +273,27 @@ class PinEntry (_server.AssuanServer):
             S: OK
 
         With STRING being a percent escaped string shown as the tooltip.
+
+        Here is a real world example of these commands in use:
+
+            C: SETQUALITYBAR Quality%3a
+            S: OK
+            C: SETQUALITYBAR_TT The quality of the text entered above.%0aPlease ask your administrator for details about the criteria.
+            S: OK
         """
-        raise NotImplementedError()
+        self.strings['qualitybar'] = arg
+        yield _common.Response('OK')
+
+    def _handle_SETQUALITYBAR_TT(self, arg):
+        self.strings['qualitybar_tooltip'] = arg
+        yield _common.Response('OK')
 
     def _handle_GETPIN(self, arg):
         try:
             self._connect()
             self._write(self.strings['description'])
+            if 'qualitybar' in self.strings:
+                self._write(self.strings['qualitybar'])
             pin = self._prompt(self.strings['prompt'], add_colon=False)
         finally:
             self._disconnect()
