@@ -23,7 +23,7 @@ from . import error as _error
 
 
 class AssuanClient (object):
-    """A single-threaded Assuan client based on the `devolpment suggestions`_
+    """A single-threaded Assuan client based on the `development suggestions`_
 
     .. _development suggestions:
       http://www.gnupg.org/documentation/manuals/assuan/Client-code.html
