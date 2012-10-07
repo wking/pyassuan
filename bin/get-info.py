@@ -19,8 +19,6 @@
 """Simple pinentry program for getting server info.
 """
 
-import socket as _socket
-
 from pyassuan import __version__
 from pyassuan import client as _client
 from pyassuan import common as _common
@@ -47,11 +45,7 @@ if __name__ == '__main__':
         client.logger.setLevel(max(
                 logging.DEBUG, client.logger.level - 10*args.verbose))
 
-    socket = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
-    socket.connect(args.filename)
-    client.input = socket.makefile('rb')
-    client.output = socket.makefile('wb')
-    client.connect()
+    client.connect(socket_path=args.filename)
     try:
         response = client.read_response()
         assert response.type == 'OK', response
@@ -68,5 +62,3 @@ if __name__ == '__main__':
     finally:
         client.make_request(_common.Request('BYE'))
         client.disconnect()
-        socket.shutdown(_socket.SHUT_RDWR)
-        socket.close()
