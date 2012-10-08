@@ -21,6 +21,7 @@ import array as _array
 import re as _re
 import socket as _socket
 
+from . import LOG as _LOG
 from . import error as _error
 
 
@@ -268,7 +269,7 @@ def error_response(error):
     return Response(type='ERR', parameters=str(error))
 
 
-def send_fds(socket, msg, fds):
+def send_fds(socket, msg=None, fds=None, logger=_LOG):
     """Send a file descriptor over a Unix socket using ``sendmsg``.
 
     ``sendmsg`` suport requires Python >= 3.3.
@@ -279,11 +280,16 @@ def send_fds(socket, msg, fds):
     Assuan equivalent is
     http://www.gnupg.org/documentation/manuals/assuan/Client-code.html#function-assuan_005fsendfd
     """
+    if msg is None:
+        msg = b''.join(
+            [b'# descriptors in flight: ', str(fds).encode('ascii'), b'\n'])
+    if logger is not None:
+        logger.debug('sending file descriptors {} down {}'.format(fds, socket))
     return socket.sendmsg(
         [msg],
         [(_socket.SOL_SOCKET, _socket.SCM_RIGHTS, _array.array('i', fds))])
 
-def receive_fds(socket, msglen, maxfds):
+def receive_fds(socket, msglen=200, maxfds=10, logger=_LOG):
     """Recieve file descriptors using ``recvmsg``.
 
     ``recvmsg`` suport requires Python >= 3.3.
@@ -302,4 +308,7 @@ def receive_fds(socket, msglen, maxfds):
             # Append data, ignoring any truncated integers at the end.
             fds.fromstring(
                 cmsg_data[:len(cmsg_data) - (len(cmsg_data) % fds.itemsize)])
+    if logger is not None:
+        logger.debug('receiving file descriptors {} from {} ({})'.format(
+                fds, socket, msg))
     return (msg, list(fds))
