@@ -170,3 +170,21 @@ class AssuanClient (object):
         self._write_request(request=request)
         if response:
             return self.get_responses(requests=requests, expect=expect)
+
+    def send_fds(self, fds):
+        """Send a file descriptor over a Unix socket.
+        """
+        msg = '# descriptors in flight: {}\n'.format(fds)
+        self.logger.info('C: {}'.format(msg.rstrip('\n')))
+        msg = msg.encode('ascii')
+        return _common.send_fds(
+            socket=self.socket, msg=msg, fds=fds, logger=None)
+
+    def receive_fds(self, msglen=200, maxfds=10):
+        """Receive file descriptors over a Unix socket.
+        """
+        msg,fds = _common.receive_fds(
+            socket=self.socket, msglen=msglen, maxfds=maxfds, logger=None)
+        msg = str(msg, 'utf-8')
+        self.logger.info('S: {}'.format(msg.rstrip('\n')))
+        return fds
