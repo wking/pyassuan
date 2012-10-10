@@ -336,7 +336,10 @@ if __name__ == '__main__':
     import logging
     import traceback
 
-    parser = argparse.ArgumentParser(description=__doc__, version=__version__)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        '-v', '--version', action='version',
+        version='%(prog)s {}'.format(__version__))
     parser.add_argument(
         '-V', '--verbose', action='count', default=0,
         help='increase verbosity')
