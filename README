@@ -57,7 +57,7 @@ Run the internal unit tests using nose_::
 If a Python-3-version of ``nosetests`` is not the default on your
 system, you may need to try something like::
 
-  $ nosetests-3.2 --with-doctest --doctest-tests pyassuan
+  $ nosetests-3.3 --with-doctest --doctest-tests pyassuan
 
 To test running servers by hand, you can use `gpg-connect-agent`_.
 Despite the name, this program can connect to any Assuan server::
