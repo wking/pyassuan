@@ -45,7 +45,7 @@ class PinEntry (_server.AssuanServer):
     for details on the pinentry interface.
 
     Alternatively, you can just watch the logs and guess ;).  Here's a
-    trace when driven by GnuPG 2.0.17 (libgcrypt 1.4.6)::
+    trace when driven by GnuPG 2.0.28 (libgcrypt 1.6.3)::
 
       S: OK Your orders please
       C: OPTION grab
@@ -58,16 +58,30 @@ class PinEntry (_server.AssuanServer):
       S: OK
       C: OPTION lc-messages=en_US.UTF-8
       S: OK
+      C: OPTION allow-external-password-cache
+      S: OK
       C: OPTION default-ok=_OK
       S: OK
       C: OPTION default-cancel=_Cancel
       S: OK
+      C: OPTION default-yes=_Yes
+      S: OK
+      C: OPTION default-no=_No
+      S: OK
       C: OPTION default-prompt=PIN:
       S: OK
-      C: OPTION touch-file=/tmp/gpg-7lElMX/S.gpg-agent
+      C: OPTION default-pwmngr=_Save in password manager
+      S: OK
+      C: OPTION default-cf-visi=Do you really want to make your passphrase visible on the screen?
+      S: OK
+      C: OPTION default-tt-visi=Make passphrase visible
+      S: OK
+      C: OPTION default-tt-hide=Hide passphrase
       S: OK
       C: GETINFO pid
       S: D 14309
+      S: OK
+      C: SETKEYINFO u/S9464F2C2825D2FE3
       S: OK
       C: SETDESC Enter passphrase%0A
       S: OK
@@ -223,6 +237,10 @@ class PinEntry (_server.AssuanServer):
             raise _error.AssuanError(message='Invalid parameter')
         yield _common.Response('OK')
 
+    def _handle_SETKEYINFO(self, arg):
+        self.strings['key info'] = arg
+        yield _common.Response('OK')
+
     def _handle_SETDESC(self, arg):
         self.strings['description'] = arg
         yield _common.Response('OK')
@@ -292,6 +310,8 @@ class PinEntry (_server.AssuanServer):
         try:
             self._connect()
             self._write(self.strings['description'])
+            if 'key info' in self.strings:
+                self._write('key: {}'.format(self.strings['key info']))
             if 'qualitybar' in self.strings:
                 self._write(self.strings['qualitybar'])
             pin = self._prompt(self.strings['prompt'], add_colon=False)
