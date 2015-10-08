@@ -241,6 +241,9 @@ class PinEntry (_server.AssuanServer):
         self.strings['key info'] = arg
         yield _common.Response('OK')
 
+    def _handle_CLEARPASSPHRASE(self, arg):
+        yield _common.Response('OK')
+
     def _handle_SETDESC(self, arg):
         self.strings['description'] = arg
         yield _common.Response('OK')
