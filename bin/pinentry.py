@@ -218,9 +218,12 @@ class PinEntry (_server.AssuanServer):
         # drop trailing newline
         return self.connection['from_user'].readline()[:-1]
 
-    def _prompt(self, prompt='?', add_colon=True):
+    def _prompt(self, prompt='?', error=None, add_colon=True):
         if add_colon:
             prompt += ':'
+        if error:
+            self.connection['to_user'].write(error)
+            self.connection['to_user'].write('\n')
         self.connection['to_user'].write(prompt)
         self.connection['to_user'].write(' ')
         self.connection['to_user'].flush()
@@ -317,7 +320,10 @@ class PinEntry (_server.AssuanServer):
                 self._write('key: {}'.format(self.strings['key info']))
             if 'qualitybar' in self.strings:
                 self._write(self.strings['qualitybar'])
-            pin = self._prompt(self.strings['prompt'], add_colon=False)
+            pin = self._prompt(
+                prompt=self.strings['prompt'],
+                error=self.strings.get('error'),
+                add_colon=False)
         finally:
             self._disconnect()
         yield _common.Response('D', pin.encode('ascii'))
