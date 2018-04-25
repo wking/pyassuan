@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright (C) 2012 W. Trevor King <wking@drexel.edu>
+# Copyright (C) 2012-2017 W. Trevor King <wking@tremily.us>
 #
 # This file is part of pyassuan.
 #
