@@ -50,19 +50,16 @@ Checkout the docstrings and the examples in ``bin``.
 Testing
 =======
 
-Run the internal unit tests using nose_::
+Run the internal unit tests with `Python 3.2+'s unittest discovery`__::
 
-  $ nosetests --with-doctest --doctest-tests pyassuan
-
-If a Python-3-version of ``nosetests`` is not the default on your
-system, you may need to try something like::
-
-  $ nosetests-3.3 --with-doctest --doctest-tests pyassuan
+  $ python -m unittest discover
 
 To test running servers by hand, you can use `gpg-connect-agent`_.
 Despite the name, this program can connect to any Assuan server::
 
   $ gpg-connect-agent --raw-socket name
+
+__ unittest-discovery_
 
 Licence
 =======
@@ -87,7 +84,8 @@ wking@tremily.us
 .. _wtk overlay: http://blog.tremily.us/posts/Gentoo_overlay/
 .. _Git: http://git-scm.com/
 .. _homepage: http://blog.tremily.us/posts/pyassuan/
-.. _nose: http://readthedocs.org/docs/nose/en/latest/
 .. _gpg-connect-agent:
   http://www.gnupg.org/documentation/manuals/gnupg-devel/gpg_002dconnect_002dagent.html
+.. _unittest-discovery:
+  https://docs.python.org/3.5/library/unittest.html#unittest-test-discovery
 .. _GNU General Public License Version 3: http://www.gnu.org/licenses/gpl.html
