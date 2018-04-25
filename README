@@ -28,7 +28,7 @@ Dependencies
 ------------
 
 ``pyassuan`` is a simple package with no external dependencies outside
-the Python 3.3 standard library.
+the Python 3.3+ standard library.
 
 Installing by hand
 ------------------
