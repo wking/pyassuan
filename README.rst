@@ -24,18 +24,21 @@ my `wtk overlay`_.  Install with::
   # layman --add wtk
   # emerge -av dev-python/pyassuan
 
+
 Dependencies
 ------------
 
 ``pyassuan`` is a simple package with no external dependencies outside
-the Python 3.3+ standard library.
+the Python 3.6+ standard library.
 
-Installing by hand
-------------------
+
+Contributing
+------------
 
 ``pyassuan`` is available as a Git_ repository::
 
   $ git clone git://tremily.us/pyassuan.git
+  $ pip install '.[test,format,]'
 
 See the homepage_ for details.  To install the checkout, run the
 standard::
@@ -52,7 +55,7 @@ Testing
 
 Run the internal unit tests with `Python 3.2+'s unittest discovery`__::
 
-  $ python -m unittest discover
+  $ python -m nose2
 
 To test running servers by hand, you can use `gpg-connect-agent`_.
 Despite the name, this program can connect to any Assuan server::
@@ -70,9 +73,11 @@ Version 3`_ or greater.
 Author
 ======
 
-W. Trevor King
-wking@tremily.us
+W. Trevor King <wking@tremily.us>
 
+
+References
+==========
 
 .. _Assuan: http://www.gnupg.org/documentation/manuals/assuan/
 .. _GnuPG: http://www.gnupg.org/

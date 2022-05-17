@@ -25,7 +25,7 @@ classifiers = [
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Topic :: Security :: Cryptography",
-    "Topic :: Software Development",
+    "Topic :: Software Development"
 ]
 
 [project.optional-dependencies]
@@ -36,21 +36,21 @@ test = [
     "pylint>=2.9.5,<3",
     "nose2>=0.11.0,<1",
     # "pytest>=6.2.5,<7",
-    # "pytest-cov>=2.10.0,<3",
+    # "pytest-cov>=2.10.0,<3"
 ]
 doc = [
     "docstr-coverage>=1.2.0,<2",
-    "pydocstyle[toml]>=6.1.1,<7",
+    "pydocstyle[toml]>=6.1.1,<7"
 ]
 format = [
     "click==8.0.4",
     "black==22.1.0",
-    "isort>=5.9.2,<6",
+    "isort>=5.9.2,<6"
 ]
 build = [
     "build>=0.7.0,<1",
-    "flit>=3,<4"
-    "wheel>=0.37.1,<1",
+    "flit>=3,<4",
+    "wheel>=0.37.1,<1"
 ]
 
 [project.urls]
