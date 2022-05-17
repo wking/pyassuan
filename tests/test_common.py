@@ -17,9 +17,9 @@
 import doctest
 import unittest
 
-from . import error
+from pyassuan import common
 
 
 def load_tests(loader, tests, ignore):
-    tests.addTests(doctest.DocTestSuite(error))
+    tests.addTests(doctest.DocTestSuite(common))
     return tests

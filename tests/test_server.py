@@ -17,7 +17,7 @@
 import doctest
 import unittest
 
-from . import server
+from pyassuan import server
 
 
 def load_tests(loader, tests, ignore):

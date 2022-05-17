@@ -16,14 +16,12 @@
 # You should have received a copy of the GNU General Public License along with
 # pyassuan.  If not, see <http://www.gnu.org/licenses/>.
 
-"""Simple pinentry program for getting server info.
-"""
+"""Simple pinentry program for getting server info."""
 
 from pyassuan import __version__
 from pyassuan import client as _client
 from pyassuan import common as _common
 from pyassuan import error as _error
-
 
 if __name__ == '__main__':
     import argparse
@@ -31,22 +29,21 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        '-v', '--version', action='version',
-        version='%(prog)s {}'.format(__version__))
+        '-v', '--version', action='version', version='%(prog)s {}'.format(__version__)
+    )
     parser.add_argument(
-        '-V', '--verbose', action='count', default=0,
-        help='increase verbosity')
-    parser.add_argument(
-        'filename',
-        help="path to server's unix socket")
+        '-V', '--verbose', action='count', default=0, help='increase verbosity'
+    )
+    parser.add_argument('filename', help="path to server's unix socket")
 
     args = parser.parse_args()
 
     client = _client.AssuanClient(name='get-info', close_on_disconnect=True)
 
     if args.verbose:
-        client.logger.setLevel(max(
-                logging.DEBUG, client.logger.level - 10*args.verbose))
+        client.logger.setLevel(
+            max(logging.DEBUG, client.logger.level - 10 * args.verbose)
+        )
 
     client.connect(socket_path=args.filename)
     try:

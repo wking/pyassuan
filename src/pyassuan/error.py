@@ -270,15 +270,16 @@ MESSAGE = {  # extracted from libgpg-error-1.10/src/err-codes.h and gpg-error.h
     16381: 'System error w/o errno',
     16382: 'Unknown system error',
     16383: 'End of file',
-    }
+}
 UNKNOWN = 'Unknown error code'
 
-CODE = dict((message,code) for code,message in MESSAGE.items())
+CODE = dict((message, code) for code, message in MESSAGE.items())
 
 # TODO: system errors (GPG_ERR_E2BIG = GPG_ERR_SYSTEM_ERROR | 0, etc.)
 
-class AssuanError (Exception):
-    r"""
+
+class AssuanError(Exception):
+    r"""Represent pyassuan errors.
 
     >>> e = AssuanError(1)
     >>> print(e)
@@ -290,7 +291,9 @@ class AssuanError (Exception):
     >>> print(e)
     2 Unknown packet
     """
+
     def __init__(self, code=None, message=None):
+        """Intialize pyassuan exception."""
         if code is None and message is None:
             raise ValueError('missing both `code` and `message`')
         if message is None:
