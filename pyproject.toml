@@ -47,7 +47,11 @@ format = [
     "black==22.1.0",
     "isort>=5.9.2,<6",
 ]
-build = ["flit>=3,<4"]
+build = [
+    "build>=0.7.0,<1",
+    "flit>=3,<4"
+    "wheel>=0.37.1,<1",
+]
 
 [project.urls]
 homepage = "http://blog.tremily.us/posts/pyassuan/"
@@ -58,11 +62,7 @@ repository = "https://github.com/wking/pyassuan.git"
 # pypinentry = "bin/pinentry.py"
 
 [tool.pydocstyle]
-ignore = [
-    "D203",
-    "D213",
-    "D300"
-]
+ignore = ["D203", "D213"]
 
 [tool.isort]
 profile = "black"
