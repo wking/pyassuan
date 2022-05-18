@@ -18,10 +18,9 @@
 
 """Simple pinentry program for getting server info."""
 
-from pyassuan import __version__
-from pyassuan import client as _client
-from pyassuan import common as _common
-from pyassuan import error as _error
+from pyassuan import __version__, client
+from pyassuan.common import Request
+from pyassuan.error import AssuanError
 
 if __name__ == '__main__':
     import argparse
@@ -29,7 +28,10 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        '-v', '--version', action='version', version='%(prog)s {}'.format(__version__)
+        '-v',
+        '--version',
+        action='version',
+        version='%(prog)s {}'.format(__version__),
     )
     parser.add_argument(
         '-V', '--verbose', action='count', default=0, help='increase verbosity'
@@ -38,7 +40,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    client = _client.AssuanClient(name='get-info', close_on_disconnect=True)
+    client = client.AssuanClient(name='get-info', close_on_disconnect=True)
 
     if args.verbose:
         client.logger.setLevel(
@@ -48,17 +50,17 @@ if __name__ == '__main__':
     client.connect(socket_path=args.filename)
     try:
         response = client.read_response()
-        assert response.type == 'OK', response
-        client.make_request(_common.Request('HELP'))
-        client.make_request(_common.Request('HELP GETINFO'))
+        assert response.message == 'OK', response
+        client.make_request(Request('HELP'))
+        client.make_request(Request('HELP GETINFO'))
         for attribute in ['version', 'pid', 'socket_name', 'ssh_socket_name']:
             try:
-                client.make_request(_common.Request('GETINFO', attribute))
-            except _error.AssuanError as e:
-                if e.message.startswith('No data'):
+                client.make_request(Request('GETINFO', attribute))
+            except AssuanError as err:
+                if err.message.startswith('No data'):
                     pass
                 else:
                     raise
     finally:
-        client.make_request(_common.Request('BYE'))
+        client.make_request(Request('BYE'))
         client.disconnect()

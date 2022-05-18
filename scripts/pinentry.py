@@ -25,8 +25,10 @@ import re
 import signal
 import sys
 import termios
+from typing import Any, Dict, Generator
 
-from pyassuan import __version__, common, error, server
+from pyassuan import __version__, error, server
+from pyassuan.common import Response
 
 
 class PinEntry(server.AssuanServer):
@@ -34,60 +36,60 @@ class PinEntry(server.AssuanServer):
 
     See ``pinentry-0.8.0/doc/pinentry.texi`` at::
 
-      ftp://ftp.gnupg.org/gcrypt/pinentry/
-      http://www.gnupg.org/aegypten/
+        ftp://ftp.gnupg.org/gcrypt/pinentry/
+        http://www.gnupg.org/aegypten/
 
     for details on the pinentry interface.
 
     Alternatively, you can just watch the logs and guess ;).  Here's a
     trace when driven by GnuPG 2.0.28 (libgcrypt 1.6.3)::
 
-      S: OK Your orders please
-      C: OPTION grab
-      S: OK
-      C: OPTION ttyname=/dev/pts/6
-      S: OK
-      C: OPTION ttytype=xterm
-      S: OK
-      C: OPTION lc-ctype=en_US.UTF-8
-      S: OK
-      C: OPTION lc-messages=en_US.UTF-8
-      S: OK
-      C: OPTION allow-external-password-cache
-      S: OK
-      C: OPTION default-ok=_OK
-      S: OK
-      C: OPTION default-cancel=_Cancel
-      S: OK
-      C: OPTION default-yes=_Yes
-      S: OK
-      C: OPTION default-no=_No
-      S: OK
-      C: OPTION default-prompt=PIN:
-      S: OK
-      C: OPTION default-pwmngr=_Save in password manager
-      S: OK
-      C: OPTION default-cf-visi=Do you really want to make your passphrase
-          visible on the screen?
-      S: OK
-      C: OPTION default-tt-visi=Make passphrase visible
-      S: OK
-      C: OPTION default-tt-hide=Hide passphrase
-      S: OK
-      C: GETINFO pid
-      S: D 14309
-      S: OK
-      C: SETKEYINFO u/S9464F2C2825D2FE3
-      S: OK
-      C: SETDESC Enter passphrase%0A
-      S: OK
-      C: SETPROMPT Passphrase
-      S: OK
-      C: GETPIN
-      S: D testing!
-      S: OK
-      C: BYE
-      S: OK closing connection
+        S: OK Your orders please
+        C: OPTION grab
+        S: OK
+        C: OPTION ttyname=/dev/pts/6
+        S: OK
+        C: OPTION ttytype=xterm
+        S: OK
+        C: OPTION lc-ctype=en_US.UTF-8
+        S: OK
+        C: OPTION lc-messages=en_US.UTF-8
+        S: OK
+        C: OPTION allow-external-password-cache
+        S: OK
+        C: OPTION default-ok=_OK
+        S: OK
+        C: OPTION default-cancel=_Cancel
+        S: OK
+        C: OPTION default-yes=_Yes
+        S: OK
+        C: OPTION default-no=_No
+        S: OK
+        C: OPTION default-prompt=PIN:
+        S: OK
+        C: OPTION default-pwmngr=_Save in password manager
+        S: OK
+        C: OPTION default-cf-visi=Do you really want to make your passphrase
+            visible on the screen?
+        S: OK
+        C: OPTION default-tt-visi=Make passphrase visible
+        S: OK
+        C: OPTION default-tt-hide=Hide passphrase
+        S: OK
+        C: GETINFO pid
+        S: D 14309
+        S: OK
+        C: SETKEYINFO u/S9464F2C2825D2FE3
+        S: OK
+        C: SETDESC Enter passphrase%0A
+        S: OK
+        C: SETPROMPT Passphrase
+        S: OK
+        C: GETPIN
+        S: D testing!
+        S: OK
+        C: BYE
+        S: OK closing connection
     """
 
     _digitregexp = re.compile(r'\d+')
@@ -96,10 +98,15 @@ class PinEntry(server.AssuanServer):
     _tpgrpregexp = re.compile(r'\d+ \(\S+\) . \d+ \d+ \d+ \d+ (\d+)')
 
     def __init__(
-        self, name='pinentry', strict_options=False, singlerequest=True, **kwargs
-    ):
-        self.strings = {}
-        self.connection = {}
+        self,
+        name: str = 'pinentry',
+        strict_options: bool = False,
+        singlerequest: bool = True,
+        **kwargs: Any
+    ) -> None:
+        """Initialize pinentry object."""
+        self.strings: Dict[str, Any] = {}
+        self.connection: Dict[str, Any] = {}
         super(PinEntry, self).__init__(
             name=name,
             strict_options=strict_options,
@@ -108,22 +115,29 @@ class PinEntry(server.AssuanServer):
         )
         self.valid_options.append('ttyname')
 
-    def reset(self):
+    def reset(self) -> None:
+        """Reset connection."""
         super(PinEntry, self).reset()
         self.strings.clear()
         self.connection.clear()
 
     # user interface
 
-    def _connect(self):
+    def _connect(self) -> None:
         self.logger.info('connecting to user')
-        self.logger.debug('options:\n{}'.format(pprint.pformat(self.options)))
+        self.logger.debug('options:{}{}'.format(
+            os.linesep, pprint.pformat(self.options))
+        )
         tty_name = self.options.get('ttyname', None)
         if tty_name:
             self.connection['tpgrp'] = self._get_pgrp(tty_name)
-            self.logger.info('open to-user output stream for {}'.format(tty_name))
+            self.logger.info(
+                'open to-user output stream for {}'.format(tty_name)
+            )
             self.connection['to_user'] = open(tty_name, 'w')
-            self.logger.info('open from-user input stream for {}'.format(tty_name))
+            self.logger.info(
+                'open from-user input stream for {}'.format(tty_name)
+            )
             self.connection['from_user'] = open(tty_name, 'r')
             self.logger.info('get current termios line discipline')
             self.connection['original termios'] = termios.tcgetattr(
@@ -143,8 +157,12 @@ class PinEntry(server.AssuanServer):
             # enable canonical mode
             newtermios[3] |= termios.ICANON
             self.logger.info('adjust termios line discipline')
-            termios.tcsetattr(self.connection['to_user'], termios.TCSANOW, newtermios)
-            self.logger.info('send SIGSTOP to pgrp {}'.format(self.connection['tpgrp']))
+            termios.tcsetattr(
+                self.connection['to_user'], termios.TCSANOW, newtermios
+            )
+            self.logger.info(
+                'send SIGSTOP to pgrp {}'.format(self.connection['tpgrp'])
+            )
             # os.killpg(self.connection['tpgrp'], signal.SIGSTOP)
             os.kill(-self.connection['tpgrp'], signal.SIGSTOP)
             self.connection['tpgrp stopped'] = True
@@ -153,10 +171,11 @@ class PinEntry(server.AssuanServer):
             self.connection['to_user'] = sys.stdout
             self.connection['from_user'] = sys.stdin
         self.logger.info('connected to user')
-        self.connection['to_user'].write('\n')  # give a clean line to work on
+        # give a clean line to work on
+        self.connection['to_user'].write(os.linesep)
         self.connection['active'] = True
 
-    def _disconnect(self):
+    def _disconnect(self) -> None:
         self.logger.info('disconnecting from user')
         try:
             if self.connection.get('original termios', None):
@@ -175,14 +194,17 @@ class PinEntry(server.AssuanServer):
             if self.connection.get('to_user', None) not in [None, sys.stdout]:
                 self.logger.info('close to-user output stream')
                 self.connection['to_user'].close()
-            if self.connection.get('from_user', None) not in [None, sys.stdout]:
+            if self.connection.get('from_user', None) not in [
+                None,
+                sys.stdout,
+            ]:
                 self.logger.info('close from-user input stream')
                 self.connection['from_user'].close()
         finally:
             self.connection = {'active': False}
             self.logger.info('disconnected from user')
 
-    def _get_pgrp(self, tty_name):
+    def _get_pgrp(self, tty_name: str) -> int:
         self.logger.info('find process group contolling {}'.format(tty_name))
         proc = '/proc'
         for name in os.listdir(proc):
@@ -203,23 +225,25 @@ class PinEntry(server.AssuanServer):
             stat = open(stat_path, 'r').read()
             self.logger.debug('check stat for pgrp: {}'.format(stat))
             match = self._tpgrpregexp.match(stat)
-            assert match != None, stat
+            assert match != (None, stat)
             pgrp = int(match.group(1))
             self.logger.info('found pgrp {} for {}'.format(pgrp, tty_name))
             return pgrp
         raise ValueError(tty_name)
 
-    def _write(self, string):
-        "Write text to the user's terminal."
+    def _write(self, string: str) -> None:
+        """Write text to the user's terminal."""
         self.connection['to_user'].write(string + '\n')
         self.connection['to_user'].flush()
 
     def read(self):
-        "Read and return a line from the user's terminal."
+        """Read and return a line from the user's terminal."""
         # drop trailing newline
         return self.connection['from_user'].readline()[:-1]
 
-    def _prompt(self, prompt='?', error=None, add_colon=True):
+    def _prompt(
+        self, prompt: str = '?', error=None, add_colon: bool = True
+    ):
         if add_colon:
             prompt += ':'
         if error:
@@ -232,52 +256,56 @@ class PinEntry(server.AssuanServer):
 
     # assuan handlers
 
-    def _handle_GETINFO(self, arg):
+    def _handle_GETINFO(self, arg: str) -> Generator['Response', None, None]:
         if arg == 'pid':
-            yield common.Response('D', str(os.getpid()).encode('ascii'))
+            yield Response('D', str(os.getpid()).encode('ascii'))
         elif arg == 'version':
-            yield common.Response('D', __version__.encode('ascii'))
+            yield Response('D', __version__.encode('ascii'))
         else:
             raise error.AssuanError(message='Invalid parameter')
-        yield common.Response('OK')
+        yield Response('OK')
 
-    def _handle_SETKEYINFO(self, arg):
+    def _handle_SETKEYINFO(self, arg: str):
         self.strings['key info'] = arg
-        yield common.Response('OK')
+        yield Response('OK')
 
-    def _handle_CLEARPASSPHRASE(self, arg):
-        yield common.Response('OK')
+    def _handle_CLEARPASSPHRASE(
+        self, arg: str
+    ) -> Generator[Response, None, None]:
+        yield Response('OK')
 
-    def _handle_SETDESC(self, arg):
+    def _handle_SETDESC(self, arg: str) -> Generator[Response, None, None]:
         self.strings['description'] = arg
-        yield common.Response('OK')
+        yield Response('OK')
 
-    def _handle_SETPROMPT(self, arg):
+    def _handle_SETPROMPT(self, arg: str) -> Generator[Response, None, None]:
         self.strings['prompt'] = arg
-        yield common.Response('OK')
+        yield Response('OK')
 
-    def _handle_SETERROR(self, arg):
+    def _handle_SETERROR(self, arg: str) -> Generator[Response, None, None]:
         self.strings['error'] = arg
-        yield common.Response('OK')
+        yield Response('OK')
 
-    def _handle_SETTITLE(self, arg):
+    def _handle_SETTITLE(self, arg: str) -> Generator[Response, None, None]:
         self.strings['title'] = arg
-        yield common.Response('OK')
+        yield Response('OK')
 
-    def _handle_SETOK(self, arg):
+    def _handle_SETOK(self, arg: str) -> Generator[Response, None, None]:
         self.strings['ok'] = arg
-        yield common.Response('OK')
+        yield Response('OK')
 
-    def _handle_SETCANCEL(self, arg):
+    def _handle_SETCANCEL(self, arg: str) -> Generator[Response, None, None]:
         self.strings['cancel'] = arg
-        yield common.Response('OK')
+        yield Response('OK')
 
-    def _handle_SETNOTOK(self, arg):
+    def _handle_SETNOTOK(self, arg: str) -> Generator[Response, None, None]:
         self.strings['not ok'] = arg
-        yield common.Response('OK')
+        yield Response('OK')
 
-    def _handle_SETQUALITYBAR(self, arg):
-        """Adds a quality indicator to the GETPIN window.
+    def _handle_SETQUALITYBAR(
+        self, arg: str
+    ) -> Generator[Response, None, None]:
+        """Add a quality indicator to the GETPIN window.
 
         This indicator is updated as the passphrase is typed.  The
         clients needs to implement an inquiry named "QUALITY" which
@@ -307,13 +335,15 @@ class PinEntry(server.AssuanServer):
             S: OK
         """
         self.strings['qualitybar'] = arg
-        yield common.Response('OK')
+        yield Response('OK')
 
-    def _handle_SETQUALITYBAR_TT(self, arg):
+    def _handle_SETQUALITYBAR_TT(
+        self, arg: str
+    ) -> Generator[Response, None, None]:
         self.strings['qualitybar_tooltip'] = arg
-        yield common.Response('OK')
+        yield Response('OK')
 
-    def _handle_GETPIN(self, arg):
+    def _handle_GETPIN(self, arg: str) -> Generator[Response, None, None]:
         try:
             self._connect()
             self._write(self.strings['description'])
@@ -328,10 +358,10 @@ class PinEntry(server.AssuanServer):
             )
         finally:
             self._disconnect()
-        yield common.Response('D', pin.encode('ascii'))
-        yield common.Response('OK')
+        yield Response('D', pin.encode('ascii'))
+        yield Response('OK')
 
-    def _handle_CONFIRM(self, arg):
+    def _handle_CONFIRM(self, arg: str) -> Generator[Response, None, None]:
         try:
             self._connect()
             self._write(self.strings['description'])
@@ -341,25 +371,24 @@ class PinEntry(server.AssuanServer):
         finally:
             self._disconnect()
         if value == '1':
-            yield common.Response('OK')
-        else:
-            raise error.AssuanError(message='Not confirmed')
+            yield Response('OK')
+        raise error.AssuanError(message='Not confirmed')
 
-    def _handle_MESSAGE(self, arg):
+    def _handle_MESSAGE(self, arg: str) -> Generator[Response, None, None]:
         self._write(self.strings['description'])
-        yield common.Response('OK')
+        yield Response('OK')
 
-    def _handle_CONFIRM(self, args):
-        assert args == '--one-button', args
-        try:
-            self._connect()
-            self._write(self.strings['description'])
-            self._write('1) ' + self.strings['ok'])
-            value = self._prompt('?')
-        finally:
-            self._disconnect()
-        assert value == '1', value
-        yield common.Response('OK')
+    # def _handle_CONFIRM(self, args):
+    #     assert args == '--one-button', args
+    #     try:
+    #         self._connect()
+    #         self._write(self.strings['description'])
+    #         self._write('1) ' + self.strings['ok'])
+    #         value = self._prompt('?')
+    #     finally:
+    #         self._disconnect()
+    #     assert value == '1', value
+    #     yield Response('OK')
 
 
 if __name__ == '__main__':
@@ -369,7 +398,10 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        '-v', '--version', action='version', version='%(prog)s {}'.format(__version__)
+        '-v',
+        '--version',
+        action='version',
+        version='%(prog)s {}'.format(__version__),
     )
     parser.add_argument(
         '-V', '--verbose', action='count', default=0, help='increase verbosity'
@@ -383,12 +415,16 @@ if __name__ == '__main__':
     p = PinEntry()
 
     if args.verbose:
-        p.logger.setLevel(max(logging.DEBUG, p.logger.level - 10 * args.verbose))
+        p.logger.setLevel(
+            max(logging.DEBUG, p.logger.level - 10 * args.verbose)
+        )
 
     try:
         p.run()
-    except:
+    except Exception:
         p.logger.error(
-            'exiting due to exception:\n{}'.format(traceback.format_exc().rstrip())
+            'exiting due to exception:{}{}'.format(
+                os.linesep, traceback.format_exc().rstrip()
+            )
         )
         raise

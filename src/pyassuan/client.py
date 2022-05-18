@@ -14,154 +14,200 @@
 # You should have received a copy of the GNU General Public License along with
 # pyassuan.  If not, see <http://www.gnu.org/licenses/>.
 
-import logging as _logging
+"""PyAssuan client for interfacing with GPG Assuan."""
+
+import logging
 import socket as _socket
-import sys as _sys
+import sys
+from typing import (
+    TYPE_CHECKING, BinaryIO, Generator, List, Optional, Tuple
+)
 
-from . import LOG as _LOG
-from . import common as _common
-from . import error as _error
+from pyassuan import LOG, common
+from pyassuan.common import Request, Response
+from pyassuan.error import AssuanError
+
+if TYPE_CHECKING:
+    from logging import Logger
+    from socket import socket as Socket
 
 
-class AssuanClient(object):
-    """A single-threaded Assuan client based on the `development suggestions`_
+class AssuanClient:
+    """A single-threaded Assuan client based on the `development suggestions`_.
 
     .. _development suggestions:
-      http://www.gnupg.org/documentation/manuals/assuan/Client-code.html
+
+        http://www.gnupg.org/documentation/manuals/assuan/Client-code.html
     """
 
     def __init__(
-        self, name, logger=_LOG, use_sublogger=True, close_on_disconnect=False
-    ):
+        self,
+        name: str,
+        logger: 'Logger' = LOG,
+        use_sublogger: bool = True,
+        close_on_disconnect: bool = False
+    ) -> None:
+        """Initialize pyassuan client."""
         self.name = name
-        if use_sublogger:
-            logger = _logging.getLogger('{}.{}'.format(logger.name, self.name))
-        self.logger = logger
-        self.close_on_disconnect = close_on_disconnect
-        self.input = self.output = self.socket = None
 
-    def connect(self, socket_path=None):
+        if use_sublogger:
+            logger = logging.getLogger('{}.{}'.format(logger.name, self.name))
+        self.logger = logger
+
+        self.close_on_disconnect = close_on_disconnect
+        self.socket: Optional['Socket'] = None
+        self.intake: Optional[BinaryIO] = None
+        self.outtake: Optional[BinaryIO] = None
+
+    def connect(self, socket_path: Optional[str] = None) -> None:
+        """Connect."""
         if socket_path:
             self.logger.info(
                 'connect to Unix socket at {}'.format(socket_path)
             )
             self.socket = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
             self.socket.connect(socket_path)
-            self.input = self.socket.makefile('rb')
-            self.output = self.socket.makefile('wb')
+            self.intake = self.socket.makefile('rb')
+            self.outtake = self.socket.makefile('wb')
         else:
-            if not self.input:
+            if not self.intake:
                 self.logger.info('read from stdin')
-                self.input = _sys.stdin.buffer
-            if not self.output:
+                self.intake = sys.stdin.buffer
+            if not self.outtake:
                 self.logger.info('write to stdout')
-                self.output = _sys.stdout.buffer
+                self.outtake = sys.stdout.buffer
 
-    def disconnect(self):
+    def disconnect(self) -> None:
+        """Disconnect."""
         if self.close_on_disconnect:
             self.logger.info('disconnecting')
-            if self.input is not None:
-                self.input.close()
-                self.input = None
-            if self.output is not None:
-                self.output.close()
-                self.output = None
+            if self.intake is not None:
+                self.intake.close()
+                self.intake = None
+            if self.outtake is not None:
+                self.outtake.close()
+                self.outtake = None
             if self.socket is not None:
                 self.socket.shutdown(_socket.SHUT_RDWR)
                 self.socket.close()
                 self.socket = None
 
-    def raise_error(self, error):
-        self.logger.error(str(error))
-        raise (error)
+    # OPTIMIZE: log from error module instead
+    # def raiseerror(self, error: AssuanError) -> None:
+    #     """Raise error."""
+    #     self.logger.error(str(error))
+    #     raise (error)
 
-    def read_response(self):
-        line = self.input.readline()
+    def read_response(self) -> 'Response':
+        """Read response."""
+        line = self.intake.readline() if self.intake else None
         if not line:
-            self.raise_error(
-                _error.AssuanError(message='IPC accept call failed')
-            )
-        if len(line) > _common.LINE_LENGTH:
-            self.raise_error(_error.AssuanError(message='Line too long'))
+            raise AssuanError(message='IPC accept call failed')
+        if len(line) > common.LINE_LENGTH:
+            raise AssuanError(message='Line too long')
         if not line.endswith(b'\n'):
-            self.logger.info('S: {}'.format(line))
-            self.raise_error(_error.AssuanError(message='Invalid response'))
+            self.logger.info('S: {!r}'.format(line))
+            raise AssuanError(message='Invalid response')
         line = line[:-1]  # remove trailing newline
-        response = _common.Response()
+        response = Response()
         try:
             response.from_bytes(line)
-        except _error.AssuanError as e:
+        except AssuanError as e:
             self.logger.error(str(e))
             raise
         self.logger.info('S: {}'.format(response))
         return response
 
-    def _write_request(self, request):
+    def _write_request(self, request: 'Request') -> None:
         self.logger.info('C: {}'.format(request))
-        self.output.write(bytes(request))
-        self.output.write(b'\n')
-        try:
-            self.output.flush()
-        except IOError:
+        if self.outtake is not None:
+            self.outtake.write(bytes(request))
+            self.outtake.write(b'\n')
+            try:
+                self.outtake.flush()
+            except IOError:
+                raise
+        else:
             raise
 
-    def make_request(self, request, response=True, expect=['OK']):
+    def make_request(
+        self,
+        request: 'Request',
+        response: bool = True,
+        expect: List[str] = ['OK']
+    ) -> Optional[Tuple[List['Response'], Optional[bytes]]]:
+        """Make request."""
         self._write_request(request=request)
         if response:
             return self.get_responses(requests=[request], expect=expect)
+        return None
 
-    def get_responses(self, requests=None, expect=['OK']):
-        responses = list(self.responses())
-        if responses[-1].type == 'ERR':
+    def get_responses(
+        self,
+        requests: Optional[List['Request']] = None,
+        expect: List[str] = ['OK']
+    ) -> Tuple[List['Response'], Optional[bytes]]:
+        """Get responses."""
+        responses = list(self.responses)
+        if responses[-1].message == 'ERR':
             eresponse = responses[-1]
-            fields = eresponse.parameters.split(' ', 1)
-            code = int(fields[0])
+            if eresponse.parameters:
+                fields = eresponse.parameters.split(' ', 1)
+                code = int(fields[0])
+            else:
+                fields = []
+                code = 1
             if len(fields) > 1:
                 message = fields[1].strip()
             else:
                 message = None
-            error = _error.AssuanError(code=code, message=message)
+            error = AssuanError(code=code, message=message)
             if requests is not None:
-                error.requests = requests
-            error.responses = responses
+                setattr(error, 'requests', requests)
+            setattr(error, 'responses', responses)
             raise error
         if expect:
-            assert responses[-1].type in expect, [str(r) for r in responses]
-        data = []
+            # XXX: should be if/else/fail
+            assert responses[-1].message in expect, [str(r) for r in responses]
+        rsp = []
         for response in responses:
-            if response.type == 'D':
-                data.append(response.parameters)
-        if data:
-            data = b''.join(data)
-        else:
-            data = None
+            if response.message == 'D':
+                rsp.append(response.parameters)
+        data = b''.join(rsp) if rsp != [] else None
         return (responses, data)
 
-    def responses(self):
+    @property
+    def responses(self) -> Generator['Response', None, None]:
+        """Iterate responses."""
         while True:
             response = self.read_response()
             yield response
-            if response.type not in ['S', '#', 'D']:
+            if response.message not in ['S', '#', 'D']:
                 break
 
-    def send_data(self, data=None, response=True, expect=['OK']):
+    def __send_data(
+        self,
+        data: Optional[str] = None,
+        response: bool = True,
+        expect: List[str] = ['OK']
+    ) -> Optional[Tuple[List['Response'], Optional[bytes]]]:
         """Iterate through requests necessary to send ``data`` to a server.
 
         http://www.gnupg.org/documentation/manuals/assuan/Client-requests.html
         """
         requests = []
         if data:
-            encoded_data = _common.encode(data)
+            encoded_data = common.encode(data)
             start = 0
             stop = min(
-                _common.LINE_LENGTH - 4, len(encoded_data)
+                common.LINE_LENGTH - 4, len(encoded_data)
             )  # 'D ', CR, CL
             self.logger.debug(
                 'sending {} bytes of encoded data'.format(len(encoded_data))
             )
             while stop > start:
-                d = encoded_data[start:stop]
-                request = _common.Request(
+                # d = encoded_data[start:stop]
+                request = Request(
                     command='D',
                     parameters=encoded_data[start:stop],
                     encoded=True,
@@ -171,28 +217,37 @@ class AssuanClient(object):
                 self._write_request(request=request)
                 start = stop
                 stop = start + min(
-                    _common.LINE_LENGTH - 4, len(encoded_data) - start
+                    common.LINE_LENGTH - 4, len(encoded_data) - start
                 )
-        request = _common.Request('END')
+        request = Request('END')
         requests.append(request)
         self._write_request(request=request)
         if response:
             return self.get_responses(requests=requests, expect=expect)
+        return None
 
-    def send_fds(self, fds):
+    def __send_fds(self, fds: List[int]) -> int:
         """Send a file descriptor over a Unix socket."""
-        msg = '# descriptors in flight: {}\n'.format(fds)
-        self.logger.info('C: {}'.format(msg.rstrip('\n')))
-        msg = msg.encode('ascii')
-        return _common.send_fds(
-            socket=self.socket, msg=msg, fds=fds, logger=None
+        if self.socket:
+            msg = '# descriptors in flight: {}\n'.format(fds)
+            self.logger.info('C: {}'.format(msg.rstrip('\n')))
+            msg = msg.encode('ascii')
+            return common.send_fds(
+                socket=self.socket, msg=msg, fds=fds, logger=None
+            )
+        raise AssuanError(
+            code=279, message='No output source for IPC'
         )
 
-    def receive_fds(self, msglen=200, maxfds=10):
+    def __recieve_fds(self, msglen: int = 200, maxfds: int = 10) -> List[int]:
         """Receive file descriptors over a Unix socket."""
-        msg, fds = _common.receive_fds(
-            socket=self.socket, msglen=msglen, maxfds=maxfds, logger=None
+        if self.socket:
+            msg, fds = common.receive_fds(
+                socket=self.socket, msglen=msglen, maxfds=maxfds, logger=None
+            )
+            string = msg.decode('utf-8')
+            self.logger.info('S: {}'.format(string.rstrip('\n')))
+            return fds
+        raise AssuanError(
+            code=278, message='No input source for IPC'
         )
-        msg = str(msg, 'utf-8')
-        self.logger.info('S: {}'.format(msg.rstrip('\n')))
-        return fds

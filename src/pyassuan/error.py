@@ -24,7 +24,10 @@ The Assuan_ docs_ suggest these error codes.
 .. _docs: http://www.gnupg.org/documentation/manuals/assuan/Error-codes.html
 """
 
-MESSAGE = {  # extracted from libgpg-error-1.10/src/err-codes.h and gpg-error.h
+from typing import Dict, Optional
+
+# extracted from libgpg-error-1.10/src/err-codes.h and gpg-error.h
+MESSAGE: Dict[int, str] = {
     0: 'Success',
     1: 'General error',
     2: 'Unknown packet',
@@ -271,9 +274,8 @@ MESSAGE = {  # extracted from libgpg-error-1.10/src/err-codes.h and gpg-error.h
     16382: 'Unknown system error',
     16383: 'End of file',
 }
-UNKNOWN = 'Unknown error code'
 
-CODE = dict((message, code) for code, message in MESSAGE.items())
+CODE: Dict[str, int] = {message: code for code, message in MESSAGE.items()}
 
 # TODO: system errors (GPG_ERR_E2BIG = GPG_ERR_SYSTEM_ERROR | 0, etc.)
 
@@ -292,14 +294,21 @@ class AssuanError(Exception):
     2 Unknown packet
     """
 
-    def __init__(self, code=None, message=None):
+    def __init__(
+        self,
+        code: Optional[int] = None,
+        message: Optional[str] = None
+    ) -> None:
         """Intialize pyassuan exception."""
-        if code is None and message is None:
+        if code and message:
+            pass
+        elif code:
+            message = MESSAGE.get(code, 'Unknown error code')
+        elif message:
+            code = CODE.get(message, 1)
+        else:
             raise ValueError('missing both `code` and `message`')
-        if message is None:
-            message = MESSAGE[code]
-        if code is None:
-            code = CODE.get(message, UNKNOWN)
+
         self.code = code
         self.message = message
         super(AssuanError, self).__init__('{} {}'.format(code, message))

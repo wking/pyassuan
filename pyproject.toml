@@ -17,8 +17,6 @@ classifiers = [
     "Operating System :: OS Independent",
     "License :: OSI Approved :: GNU General Public License (GPL)",
     "Programming Language :: Python :: 3",
-    # "Programming Language :: Python :: 3.4",
-    # "Programming Language :: Python :: 3.5",
     "Programming Language :: Python :: 3.6",
     "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
@@ -58,8 +56,8 @@ homepage = "http://blog.tremily.us/posts/pyassuan/"
 repository = "https://github.com/wking/pyassuan.git"
 
 # [tool.flit.scripts]
-# get-info = "bin/get_info.py"
-# pypinentry = "bin/pinentry.py"
+# get-info = "scripts/get_info.py"
+# pypinentry = "scripts/pinentry.py"
 
 [tool.pydocstyle]
 ignore = ["D203", "D213"]

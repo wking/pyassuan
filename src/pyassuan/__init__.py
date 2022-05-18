@@ -19,17 +19,15 @@
 .. _Assuan protocol: http://www.gnupg.org/documentation/manuals/assuan/
 """
 
-import logging as _logging
-import logging.handlers as _logging_handlers
-
+import logging
 
 __version__ = '0.2'
 
-LOG = _logging.getLogger('pyassuan')
-LOG.setLevel(_logging.ERROR)
-LOG.addHandler(_logging.StreamHandler())
-# LOG.addHandler(_logging.FileHandler('/tmp/pinentry.log'))
-# LOG.addHandler(_logging_handlers.SysLogHandler(address='/dev/log'))
+LOG = logging.getLogger('pyassuan')
+LOG.setLevel(logging.ERROR)
+LOG.addHandler(logging.StreamHandler())
+# LOG.addHandler(logging.FileHandler('/tmp/pinentry.log'))
+# LOG.addHandler(logging_handlers.SysLogHandler(address='/dev/log'))
 LOG.handlers[0].setFormatter(
-    _logging.Formatter('%(name)s: %(levelname)s: %(message)s')
+    logging.Formatter('%(name)s: %(levelname)s: %(message)s')
 )

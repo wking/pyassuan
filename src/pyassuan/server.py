@@ -14,276 +14,307 @@
 # You should have received a copy of the GNU General Public License along with
 # pyassuan.  If not, see <http://www.gnu.org/licenses/>.
 
+"""Manage PyAssuan IPC server connections."""
+
 import logging
 import re
 import sys
 import threading
 import traceback
+from typing import (
+    TYPE_CHECKING, Any, BinaryIO, Dict, Generator, List, Optional
+)
 
-from . import LOG, common, error
+from . import LOG, common
+from pyassuan.common import Request, Response
+from pyassuan.error import AssuanError
 
-_OPTION_REGEXP = re.compile(r'^-?-?([-\w]+)( *)(=?) *(.*?) *\Z')
+if TYPE_CHECKING:
+    from logging import Logger
+    from socket import socket as Socket
+    from threading import Thread
+
+__all__: List[str] = ['AssuanServer', 'AssuanSocketServer']
+
+OPTION_REGEXP = re.compile(r'^-?-?([-\w]+)( *)(=?) *(.*?) *\Z')
 
 
-class AssuanServer(object):
+class AssuanServer:
     """A single-threaded Assuan server based on the `devolpment suggestions`_.
 
     Extend by subclassing and adding ``_handle_XXX`` methods for each
     command you want to handle.
 
     .. _development suggestions:
-      http://www.gnupg.org/documentation/manuals/assuan/Server-code.html
+        http://www.gnupg.org/documentation/manuals/assuan/Server-code.html
     """
 
     def __init__(
         self,
-        name,
-        logger=LOG,
-        use_sublogger=True,
-        valid_options=None,
-        strict_options=True,
-        singlerequest=False,
-        listen_to_quit=False,
-        close_on_disconnect=False,
-    ):
+        name: str,
+        logger: 'Logger' = LOG,
+        use_sublogger: bool = True,
+        valid_options: Optional[List[str]] = None,
+        strict_options: bool = True,
+        singlerequest: bool = False,
+        listen_to_quit: bool = False,
+        close_on_disconnect: bool = False,
+    ) -> None:
+        """Intialize pyassuan server."""
         self.name = name
         if use_sublogger:
             logger = logging.getLogger('{}.{}'.format(logger.name, self.name))
         self.logger = logger
-        if valid_options is None:
-            valid_options = []
-        self.valid_options = valid_options
+
+        self.valid_options = valid_options if valid_options else []
         self.strict_options = strict_options
+        self.options: Dict[str, Any] = {}
+
         self.singlerequest = singlerequest
         self.listen_to_quit = listen_to_quit
         self.close_on_disconnect = close_on_disconnect
-        self.input = self.output = None
-        self.options = {}
+        self.intake: Optional[BinaryIO] = None
+        self.outtake: Optional[BinaryIO] = None
         self.reset()
 
-    def reset(self):
+    def reset(self) -> None:
+        """Reset pyassuan server."""
         self.stop = False
         self.options.clear()
 
-    def run(self):
+    def run(self) -> None:
+        """Run pyassuan server instance."""
         self.reset()
         self.logger.info('running')
         self.connect()
         try:
-            self.handlerequests()
+            self._handle_requests()
         finally:
             self.disconnect()
             self.logger.info('stopping')
 
-    def connect(self):
-        if not self.input:
+    def connect(self) -> None:
+        """Connect to the GPG Agent."""
+        if not self.intake:
             self.logger.info('read from stdin')
-            self.input = sys.stdin.buffer
-        if not self.output:
+            self.intake = sys.stdin.buffer
+        if not self.outtake:
             self.logger.info('write to stdout')
-            self.output = sys.stdout.buffer
+            self.outtake = sys.stdout.buffer
 
-    def disconnect(self):
+    def disconnect(self) -> None:
+        """Disconnect from the GPG Agent."""
         if self.close_on_disconnect:
             self.logger.info('disconnecting')
-            self.input = None
-            self.output = None
+            self.intake = None
+            self.outtake = None
 
-    def handlerequests(self):
-        self.sendresponse(common.Response('OK', 'Your orders please'))
-        self.output.flush()
-        while not self.stop:
-            line = self.input.readline()
-            if not line:
-                break  # EOF
-            if len(line) > common.LINE_LENGTH:
-                self.raiseerror(error.AssuanError(message='Line too long'))
-            if not line.endswith(b'\n'):
-                self.logger.info('C: {}'.format(line))
-                self.senderrorresponse(
-                    error.AssuanError(message='Invalid request')
-                )
-                continue
-            line = line[:-1]  # remove the trailing newline
-            self.logger.info('C: {}'.format(line))
-            request = common.Request()
-            try:
-                request.from_bytes(line)
-            except error.AssuanError as e:
-                self.senderrorresponse(e)
-                continue
-            self.handlerequest(request)
+    def _handle_requests(self) -> None:
+        self.__send_response(Response('OK', 'Your orders please'))
+        if self.outtake:
+            self.outtake.flush()
+            while not self.stop:
+                line = self.intake.readline() if self.intake else None
+                if not line:
+                    break  # EOF
+                if len(line) > common.LINE_LENGTH:
+                    raise AssuanError(message='Line too long')
+                if not line.endswith(b'\n'):
+                    self.logger.info("C: {!r}".format(line))
+                    self.__send_error_response(
+                        AssuanError(message='Invalid request')
+                    )
+                    continue
+                line = line[:-1]  # remove the trailing newline
+                self.logger.info("C: {!r}".format(line))
+                request = Request()
+                try:
+                    request.from_bytes(line)
+                except AssuanError as e:
+                    self.__send_error_response(e)
+                    continue
+                self.__handle_request(request)
 
-    def handlerequest(self, request):
+    def __handle_request(self, request: 'Request') -> None:
         try:
-            handle = getattr(self, '_handle_{}'.format(request.command))
+            handle = getattr(self, '_handle_{}'.format(
+                request.command.lower())
+            )
         except AttributeError:
             self.logger.warn('unknown command: {}'.format(request.command))
-            self.senderrorresponse(
-                error.AssuanError(message='Unknown command')
+            self.__send_error_response(
+                AssuanError(message='Unknown command')
             )
             return
         try:
             responses = handle(request.parameters)
             for response in responses:
-                self.sendresponse(response)
-        except error.AssuanError as error:
-            self.senderrorresponse(error)
+                self.__send_response(response)
+        except AssuanError as error:
+            self.__send_error_response(error)
             return
-        except Exception as e:
+        except Exception:
             self.logger.error(
                 'exception while executing {}:\n{}'.format(
                     handle, traceback.format_exc().rstrip()
                 )
             )
-            self.senderrorresponse(
-                error.AssuanError(message='Unspecific Assuan server fault')
+            self.__send_error_response(
+                AssuanError(message='Unspecific Assuan server fault')
             )
             return
 
-    def sendresponse(self, response):
-        """For internal use by ``.handlerequests()``"""
-        rstring = str(response)
+    def __send_response(self, response: 'Response') -> None:
+        """For internal use by ``._handle_requests()``."""
+        # rstring = str(response)
         self.logger.info('S: {}'.format(response))
-        self.output.write(bytes(response))
-        self.output.write(b'\n')
-        try:
-            self.output.flush()
-        except IOError:
-            if not self.stop:
-                raise
+        if self.outtake:
+            self.outtake.write(bytes(response))
+            self.outtake.write(b'\n')
+            try:
+                self.outtake.flush()
+            except IOError:
+                if not self.stop:
+                    raise
+        else:
+            raise
 
-    def senderrorresponse(self, error):
-        """For internal use by ``.handlerequests()``"""
-        self.sendresponse(common.errorresponse(error))
+    def __send_error_response(self, error: AssuanError) -> None:
+        """For internal use by ``._handle_requests()``."""
+        self.__send_response(common.errorresponse(error))
 
     # common commands defined at
     # http://www.gnupg.org/documentation/manuals/assuan/Client-requests.html
 
-    def _handle_BYE(self, arg):
+    def _handle_bye(self, arg: str) -> Generator['Response', None, None]:
         if self.singlerequest:
             self.stop = True
-        yield common.Response('OK', 'closing connection')
+        yield Response('OK', 'closing connection')
 
-    def _handle_RESET(self, arg):
+    def _handle_reset(self, arg: str) -> None:
         self.reset()
 
-    def _handle_END(self, arg):
-        raise error.AssuanError(code=175, message='Unknown command (reserved)')
+    def _handle_end(self, arg: str) -> None:
+        raise AssuanError(code=175, message='Unknown command (reserved)')
 
-    def _handle_HELP(self, arg):
-        raise error.AssuanError(code=175, message='Unknown command (reserved)')
+    def _handle_help(self, arg: str) -> None:
+        raise AssuanError(code=175, message='Unknown command (reserved)')
 
-    def _handle_QUIT(self, arg):
+    def _handle_quit(self, arg: str) -> Generator['Response', None, None]:
         if self.listen_to_quit:
             self.stop = True
-            yield common.Response('OK', 'stopping the server')
-        raise error.AssuanError(code=175, message='Unknown command (reserved)')
+            yield Response('OK', 'stopping the server')
+        raise AssuanError(code=175, message='Unknown command (reserved)')
 
-    def _handle_OPTION(self, arg):
-        """
+    def _handle_option(self, arg: str) -> Generator['Response', None, None]:
+        """Handle option.
 
-        >>> s = AssuanServer(name='test', valid_options=['my-op'])
-        >>> list(s._handle_OPTION('my-op = 1 '))  # doctest: +ELLIPSIS
-        [<pyassuan.common.Response object at ...>]
-        >>> s.options
-        {'my-op': '1'}
-        >>> list(s._handle_OPTION('my-op 2'))  # doctest: +ELLIPSIS
-        [<pyassuan.common.Response object at ...>]
-        >>> s.options
-        {'my-op': '2'}
-        >>> list(s._handle_OPTION('--my-op 3'))  # doctest: +ELLIPSIS
-        [<pyassuan.common.Response object at ...>]
-        >>> s.options
-        {'my-op': '3'}
-        >>> list(s._handle_OPTION('my-op'))  # doctest: +ELLIPSIS
-        [<pyassuan.common.Response object at ...>]
-        >>> s.options
-        {'my-op': None}
-        >>> list(s._handle_OPTION('inv'))
-        Traceback (most recent call last):
-          ...
-        pyassuan.error.AssuanError: 174 Unknown option
-        >>> list(s._handle_OPTION('in|valid'))
-        Traceback (most recent call last):
-          ...
-        pyassuan.error.AssuanError: 90 Invalid parameter
+        .. doctest::
+
+            >>> s = AssuanServer(name='test', valid_options=['my-op'])
+            >>> list(s._handle_option('my-op = 1 '))  # doctest: +ELLIPSIS
+            [<pyassuan.common.Response object at ...>]
+            >>> s.options
+            {'my-op': '1'}
+            >>> list(s._handle_option('my-op 2'))  # doctest: +ELLIPSIS
+            [<pyassuan.common.Response object at ...>]
+            >>> s.options
+            {'my-op': '2'}
+            >>> list(s._handle_option('--my-op 3'))  # doctest: +ELLIPSIS
+            [<pyassuan.common.Response object at ...>]
+            >>> s.options
+            {'my-op': '3'}
+            >>> list(s._handle_option('my-op'))  # doctest: +ELLIPSIS
+            [<pyassuan.common.Response object at ...>]
+            >>> s.options
+            {'my-op': None}
+            >>> list(s._handle_option('inv'))
+            Traceback (most recent call last):
+              ...
+            pyassuan.error.AssuanError: 174 Unknown option
+            >>> list(s._handle_option('in|valid'))
+            Traceback (most recent call last):
+              ...
+            pyassuan.error.AssuanError: 90 Invalid parameter
         """
-        match = _OPTION_REGEXP.match(arg)
+        match = OPTION_REGEXP.match(arg)
         if not match:
-            raise error.AssuanError(message='Invalid parameter')
+            raise AssuanError(message='Invalid parameter')
         name, space, equal, value = match.groups()
         if value and not space and not equal:
             # need either space or equal to separate value
-            raise error.AssuanError(message='Invalid parameter')
+            raise AssuanError(message='Invalid parameter')
         if name not in self.valid_options:
             if self.strict_options:
-                raise error.AssuanError(message='Unknown option')
+                raise AssuanError(message='Unknown option')
             else:
                 self.logger.info('skipping invalid option: {}'.format(name))
         else:
             if not value:
                 value = None
             self.options[name] = value
-        yield common.Response('OK')
+        yield Response('OK')
 
-    def _handle_CANCEL(self, arg):
-        raise error.AssuanError(code=175, message='Unknown command (reserved)')
+    def _handle_cancel(self, arg: str) -> None:
+        raise AssuanError(code=175, message='Unknown command (reserved)')
 
-    def _handle_AUTH(self, arg):
-        raise error.AssuanError(code=175, message='Unknown command (reserved)')
+    def _handle_auth(self, arg: str) -> None:
+        raise AssuanError(code=175, message='Unknown command (reserved)')
 
 
-class AssuanSocketServer(object):
-    """A threaded server spawning ``AssuanServer``\s for each connection"""
+class AssuanSocketServer:
+    """A threaded server spawning an ``AssuanServer`` for each connection."""
 
     def __init__(
         self,
-        name,
-        socket,
-        server,
-        kwargs={},
-        max_threads=10,
-        logger=LOG,
-        use_sublogger=True,
-    ):
+        name: str,
+        socket: 'Socket',
+        server: 'AssuanServer',
+        kwargs: Dict[str, Any] = {},
+        max_threads: int = 10,
+        logger: 'Logger' = LOG,
+        use_sublogger: bool = True,
+    ) -> None:
+        """Initialize pyassuan IPC server."""
         self.name = name
         if use_sublogger:
             logger = logging.getLogger('{}.{}'.format(logger.name, self.name))
         self.logger = logger
         self.socket = socket
         self.server = server
+        # XXX: should be in/else/fail
         assert 'name' not in kwargs, kwargs['name']
         assert 'logger' not in kwargs, kwargs['logger']
         kwargs['logger'] = self.logger
         assert 'use_sublogger' not in kwargs, kwargs['use_sublogger']
         kwargs['use_sublogger'] = True
         if 'close_on_disconnect' in kwargs:
-            assert kwargs['close_on_disconnect'] == True, kwargs[
-                'close_on_disconnect'
-            ]
+            assert kwargs['close_on_disconnect'] == (
+                True, kwargs['close_on_disconnect']
+            )
         else:
             kwargs['close_on_disconnect'] = True
         self.kwargs = kwargs
         self.max_threads = max_threads
-        self.threads = []
+        self.threads: List['Thread'] = []
 
-    def run(self):
+    def run(self) -> None:
+        """Run pyassuan socket server."""
         self.logger.info('listen on socket')
         self.socket.listen()
         thread_index = 0
         while True:
             socket, address = self.socket.accept()
             self.logger.info('connection from {}'.format(address))
-            self.cleanup_threads()
-            if len(threads) > self.max_threads:
+            self.__cleanup_threads()
+            if len(self.threads) > self.max_threads:
                 self.drop_connection(socket, address)
-            self.spawn_thread(
+            self.__spawn_thread(
                 'server-thread-{}'.format(thread_index), socket, address
             )
             thread_index = (thread_index + 1) % self.max_threads
 
-    def cleanup_threads(self):
+    def __cleanup_threads(self) -> None:
         i = 0
         while i < len(self.threads):
             thread = self.threads[i]
@@ -291,19 +322,22 @@ class AssuanSocketServer(object):
             if thread.is_alive():
                 self.logger.info('joined thread {}'.format(thread.name))
                 self.threads.pop(i)
-                thread.socket.shutdown()
-                thread.socket.close()
+                thread.socket.shutdown()  # type: ignore
+                thread.socket.close()  # type: ignore
             else:
                 i += 1
 
-    def drop_connection(self, socket, address):
+    def drop_connection(self, socket: 'Socket', address: str) -> None:
+        """Drop connection."""
         self.logger.info('drop connection from {}'.format(address))
         # TODO: proper error to send to the client?
 
-    def spawn_thread(self, name, socket, address):
-        server = self.server(name=name, **self.kwargs)
-        server.input = socket.makefile('rb')
-        server.output = socket.makefile('wb')
+    def __spawn_thread(
+        self, name: str, socket: 'Socket', address: str
+    ) -> None:
+        server = self.server(name=name, **self.kwargs)  # type: ignore
+        server.intake = socket.makefile('rb')
+        server.outtake = socket.makefile('wb')
         thread = threading.Thread(target=server.run, name=name)
         thread.start()
         self.threads.append(thread)

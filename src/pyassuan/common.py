@@ -16,90 +16,119 @@
 
 """Items common to both the client and server."""
 
-import array
-import re as re
+import re
 import socket as _socket
+from array import array
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
-from . import LOG, error
+from pyassuan import LOG
+from pyassuan.error import AssuanError
 
+if TYPE_CHECKING:
+    from logging import Logger
+    from socket import socket as Socket
+
+__all__: List[str] = [
+    'LINE_LENGTH',
+    'Request',
+    'Response',
+    'decode',
+    'encode',
+    'from_hex',
+    'to_hex',
+    'receive_fds',
+    'send_fds',
+]
+
+# FIXME: correctly handle byte / str for encode / decode
+# VarChar = Union[bytes, str]
 
 LINE_LENGTH = 1002  # 1000 + [CR,]LF
-_ENCODE_PATTERN = '(' + '|'.join(['%', '\r', '\n']) + ')'
-_ENCODE_STR_REGEXP = re.compile(_ENCODE_PATTERN)
-_ENCODE_BYTE_REGEXP = re.compile(_ENCODE_PATTERN.encode('ascii'))
-_DECODE_STR_REGEXP = re.compile('(%[0-9A-Fa-f]{2})')
-_DECODE_BYTE_REGEXP = re.compile(b'(%[0-9A-Fa-f]{2})')
-_REQUEST_REGEXP = re.compile(r'^(\w+)( *)(.*)\Z')
+ENCODE_PATTERN = '(' + '|'.join(['%', '\r', '\n']) + ')'
+ENCODE_STR_REGEXP = re.compile(ENCODE_PATTERN)
+ENCODE_BYTE_REGEXP = re.compile(ENCODE_PATTERN.encode('utf-8'))
+DECODE_STR_REGEXP = re.compile('(%[0-9A-Fa-f]{2})')
+DECODE_BYTE_REGEXP = re.compile(b'(%[0-9A-Fa-f]{2})')
+REQUEST_REGEXP = re.compile(r'^(\w+)( *)(.*)\Z')
 
 
-def encode(data):
+def encode(data: str) -> str:
     r"""Encode data.
 
-    >>> encode('It grew by 5%!\n')
-    'It grew by 5%25!%0A'
-    >>> encode(b'It grew by 5%!\n')
-    b'It grew by 5%25!%0A'
+    .. doctest::
+
+        >>> encode('It grew by 5%!\n')
+        'It grew by 5%25!%0A'
+        >>> encode(b'It grew by 5%!\n')
+        b'It grew by 5%25!%0A'
     """
     if isinstance(data, bytes):
-        regexp = _ENCODE_BYTE_REGEXP
+        regexp = ENCODE_BYTE_REGEXP
     else:
-        regexp = _ENCODE_STR_REGEXP
+        regexp = ENCODE_STR_REGEXP
     return regexp.sub(lambda x: to_hex(x.group()), data)
 
 
-def decode(data):
+def decode(data: str) -> str:
     r"""Decode data.
 
-    >>> decode('%22Look out!%22%0AWhere%3F')
-    '"Look out!"\nWhere?'
-    >>> decode(b'%22Look out!%22%0AWhere%3F')
-    b'"Look out!"\nWhere?'
+    .. doctest::
+
+        >>> decode('%22Look out!%22%0AWhere%3F')
+        '"Look out!"\nWhere?'
+        >>> decode(b'%22Look out!%22%0AWhere%3F')
+        b'"Look out!"\nWhere?'
     """
     if isinstance(data, bytes):
-        regexp = _DECODE_BYTE_REGEXP
+        regexp = DECODE_BYTE_REGEXP
     else:
-        regexp = _DECODE_STR_REGEXP
+        regexp = DECODE_STR_REGEXP
     return regexp.sub(lambda x: from_hex(x.group()), data)
 
 
-def from_hex(code):
-    r"""Convert hex string.
+def from_hex(code: str) -> str:
+    r"""Convert hex to char.
 
-    >>> from_hex('%22')
-    '"'
-    >>> from_hex('%0A')
-    '\n'
-    >>> from_hex(b'%0A')
-    b'\n'
+    .. doctest::
+
+        >>> from_hex('%22')
+        '"'
+        >>> from_hex('%0A')
+        '\n'
+        >>> from_hex(b'%0A')
+        b'\n'
     """
     c = chr(int(code[1:], 16))
     if isinstance(code, bytes):
-        c = c.encode('ascii')
+        c = c.encode('utf-8')
     return c
 
 
-def to_hex(char):
-    r"""Convert string to hex.
+def to_hex(char: str) -> str:
+    r"""Convert char to hex.
 
-    >>> to_hex('"')
-    '%22'
-    >>> to_hex('\n')
-    '%0A'
-    >>> to_hex(b'\n')
-    b'%0A'
+    .. doctest::
+
+        >>> to_hex('"')
+        '%22'
+        >>> to_hex('\n')
+        '%0A'
+        >>> to_hex(b'\n')
+        b'%0A'
     """
     hx = '%{:02X}'.format(ord(char))
     if isinstance(char, bytes):
-        hx = hx.encode('ascii')
+        hx = hx.encode('utf-8')
     return hx
 
 
-class Request(object):
+class Request:
     """Represent a client request.
 
     http://www.gnupg.org/documentation/manuals/assuan/Client-requests.html
 
     .. doctest::
+
         >>> r = Request(command='BYE')
         >>> str(r)
         'BYE'
@@ -124,17 +153,22 @@ class Request(object):
         pyassuan.error.AssuanError: 170 Invalid request
         >>> r.from_bytes(b'in-valid')
         Traceback (most recent call last):
-          ...
+          ...self.socket = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
         pyassuan.error.AssuanError: 170 Invalid request
     """
 
-    def __init__(self, command=None, parameters=None, encoded=False):
+    def __init__(
+        self,
+        command: str = '',  # HACK: this is not designed correctly
+        parameters: Optional[str] = None,
+        encoded: bool = False
+    ) -> None:
         """Initialize a client request object."""
         self.command = command
         self.parameters = parameters
         self.encoded = encoded
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Provide string representation of request."""
         if self.parameters:
             if self.encoded:
@@ -144,7 +178,7 @@ class Request(object):
             return '{} {}'.format(self.command, encoded_parameters)
         return self.command
 
-    def __bytes__(self):
+    def __bytes__(self) -> bytes:
         """Provide bytes representation of request."""
         if self.parameters:
             if self.encoded:
@@ -156,20 +190,22 @@ class Request(object):
             )
         return self.command.encode('utf-8')
 
-    def from_bytes(self, line):
+    def from_bytes(self, line: bytes) -> None:
         """Convert request from bytes."""
         if len(line) > 1000:  # TODO: byte-vs-str and newlines?
-            raise error.AssuanError(message='Line too long')
-        line = str(line, encoding='utf-8')
-        match = _REQUEST_REGEXP.match(line)
+            raise AssuanError(message='Line too long')
+
+        string = line.decode('utf-8')
+        match = REQUEST_REGEXP.match(string)
         if not match:
-            raise error.AssuanError(message='Invalid request')
+            raise AssuanError(message='Invalid request')
+
         self.command = match.group(1)
         if match.group(3):
             if match.group(2):
                 self.parameters = decode(match.group(3))
             else:
-                raise error.AssuanError(message='Invalid request')
+                raise AssuanError(message='Invalid request')
         else:
             self.parameters = None
 
@@ -180,21 +216,22 @@ class Response:
     http://www.gnupg.org/documentation/manuals/assuan/Server-responses.html
 
     .. doctest::
-        >>> r = Response(type='OK')
+
+        >>> r = Response(message='OK')
         >>> str(r)
         'OK'
-        >>> r = Response(type='ERR', parameters='1 General error')
+        >>> r = Response(message='ERR', parameters='1 General error')
         >>> str(r)
         'ERR 1 General error'
         >>> bytes(r)
         b'ERR 1 General error'
         >>> r.from_bytes(b'OK')
-        >>> r.type
+        >>> r.message
         'OK'
         >>> print(r.parameters)
         None
         >>> r.from_bytes(b'ERR 1 General error')
-        >>> r.type
+        >>> r.message
         'ERR'
         >>> print(r.parameters)
         1 General error
@@ -208,7 +245,7 @@ class Response:
         pyassuan.error.AssuanError: 76 Invalid response
     """
 
-    types = {
+    messages: Dict[str, str] = {
         'O': 'OK',
         'E': 'ERR',
         'S': 'S',
@@ -217,72 +254,86 @@ class Response:
         'I': 'INQUIRE',
     }
 
-    def __init__(self, type=None, parameters=None):
+    def __init__(
+        self,
+        message: str = '',  # HACK: this is not designed correctly
+        parameters: Optional[str] = None,
+    ) -> None:
         """Inititialize a server response."""
-        self.type = type
+        self.message = message
         self.parameters = parameters
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Provide string representation."""
         if self.parameters:
-            return '{} {}'.format(self.type, encode(self.parameters))
-        return self.type
+            return '{} {}'.format(self.message, encode(self.parameters))
+        return self.message
 
-    def __bytes__(self):
+    def __bytes__(self) -> bytes:
         """Provide bytes representation."""
         if self.parameters:
-            if self.type == 'D':
-                return b' '.join((b'D', self.parameters))
+            if self.message == 'D':
+                return b' '.join((b'D', self.parameters.encode()))
             else:
                 return '{} {}'.format(
-                    self.type, encode(self.parameters)
+                    self.message, encode(self.parameters)
                 ).encode('utf-8')
-        return self.type.encode('utf-8')
+        return self.message.encode('utf-8')
 
-    def from_bytes(self, line):
+    def from_bytes(self, line: bytes) -> None:
         """Convert from bytes."""
         if len(line) > 1000:  # TODO: byte-vs-str and newlines?
-            raise error.AssuanError(message='Line too long')
-        if line.startswith(b'D'):
-            self.command = t = 'D'
+            raise AssuanError(message='Line too long')
+
+        string = line.decode('utf-8')
+        if string.startswith('D'):
+            self.command = s = 'D'
         else:
-            line = str(line, encoding='utf-8')
-            t = line[0]
+            s = string[0]
+
         try:
-            type = self.types[t]
+            message = self.messages[s]
         except KeyError:
-            raise error.AssuanError(message='Invalid response')
-        self.type = type
-        if type == 'D':  # data
-            self.parameters = decode(line[2:])
-        elif type == '#':  # comment
-            self.parameters = decode(line[2:])
+            raise AssuanError(message='Invalid response')
+
+        self.message = message
+        if message == 'D':  # data
+            self.parameters = decode(string[2:])
+        elif message == '#':  # comment
+            self.parameters = decode(string[2:])
         else:
-            match = _REQUEST_REGEXP.match(line)
+            match = REQUEST_REGEXP.match(string)
             if not match:
-                raise error.AssuanError(message='Invalid request')
+                raise AssuanError(message='Invalid request')
             if match.group(3):
                 if match.group(2):
                     self.parameters = decode(match.group(3))
                 else:
-                    raise error.AssuanError(message='Invalid request')
+                    raise AssuanError(message='Invalid request')
             else:
                 self.parameters = None
 
 
-def errorresponse(error):
+def errorresponse(error: AssuanError) -> 'Response':
     """Provide error response.
 
-    >>> from pyassuan.error import AssuanError
-    >>> error = AssuanError(1)
-    >>> response = errorresponse(error)
-    >>> print(response)
-    ERR 1 General error
+    .. doctest::
+
+        >>> from pyassuan.error import AssuanError
+        >>> error = AssuanError(1)
+        >>> response = errorresponse(error)
+        >>> print(response)
+        ERR 1 General error
     """
-    return Response(type='ERR', parameters=str(error))
+    return Response(message='ERR', parameters=str(error))
 
 
-def send_fds(socket, msg=None, fds=None, logger=LOG):
+def send_fds(
+    socket: 'Socket',
+    msg: Optional[bytes] = None,
+    fds: Optional[List[int]] = None,
+    logger: Optional['Logger'] = LOG
+) -> int:
     """Send a file descriptor over a Unix socket using ``sendmsg``.
 
     ``sendmsg`` suport requires Python >= 3.3.
@@ -295,19 +346,25 @@ def send_fds(socket, msg=None, fds=None, logger=LOG):
     """
     if msg is None:
         msg = b''.join(
-            [b'# descriptors in flight: ', str(fds).encode('ascii'), b'\n']
+            [b'# descriptors in flight: ', str(fds).encode('utf-8'), b'\n']
         )
 
     if logger is not None:
         logger.debug('sending file descriptors {} down {}'.format(fds, socket))
 
+    arr = array('i', fds) if fds else array('i')
     return socket.sendmsg(
         [msg],
-        [(_socket.SOL_SOCKET, _socket.SCM_RIGHTS, array.array('i', fds))],
+        [(_socket.SOL_SOCKET, _socket.SCM_RIGHTS, arr)],
     )
 
 
-def receive_fds(socket, msglen=200, maxfds=10, logger=LOG):
+def receive_fds(
+    socket: 'Socket',
+    msglen: int = 200,
+    maxfds: int = 10,
+    logger: Optional['Logger'] = LOG
+) -> Tuple[bytes, List[int]]:
     """Recieve file descriptors using ``recvmsg``.
 
     ``recvmsg`` suport requires Python >= 3.3.
@@ -317,7 +374,7 @@ def receive_fds(socket, msglen=200, maxfds=10, logger=LOG):
     Assuan equivalent is
     http://www.gnupg.org/documentation/manuals/assuan/Client-code.html#fun_002dassuan_005freceivedfd
     """
-    fds = array.array('i')  # Array of ints
+    fds = array('i')  # Array of ints
     msg, ancdata, flags, addr = socket.recvmsg(
         msglen, _socket.CMSG_LEN(maxfds * fds.itemsize)
     )
@@ -327,12 +384,12 @@ def receive_fds(socket, msglen=200, maxfds=10, logger=LOG):
             and cmsg_type == _socket.SCM_RIGHTS
         ):
             # Append data, ignoring any truncated integers at the end.
-            fds.fromstring(
+            fds.frombytes(
                 cmsg_data[: len(cmsg_data) - (len(cmsg_data) % fds.itemsize)]
             )
     if logger is not None:
         logger.debug(
-            'receiving file descriptors {} from {} ({})'.format(
+            'receiving file descriptors {} from {} ({!r})'.format(
                 fds, socket, msg
             )
         )
