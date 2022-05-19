@@ -227,11 +227,11 @@ class AssuanClient:
         return None
 
     def __send_fds(self, fds: List[int]) -> int:
-        """Send a file descriptor over a Unix socket."""
+        """Send file descriptors over a Unix socket."""
         if self.socket:
             msg = '# descriptors in flight: {}\n'.format(fds)
             self.logger.info('C: {}'.format(msg.rstrip('\n')))
-            msg = msg.encode('ascii')
+            msg = msg.encode('utf-8')
             return common.send_fds(
                 socket=self.socket, msg=msg, fds=fds, logger=None
             )

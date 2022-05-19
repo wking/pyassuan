@@ -19,7 +19,9 @@
 import re
 import socket as _socket
 from array import array
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import (
+    TYPE_CHECKING, Dict, List, Optional, Tuple, TypeVar, Union
+)
 
 from pyassuan import LOG
 from pyassuan.error import AssuanError
@@ -32,94 +34,67 @@ __all__: List[str] = [
     'LINE_LENGTH',
     'Request',
     'Response',
-    'decode',
-    'encode',
-    'from_hex',
-    'to_hex',
     'receive_fds',
     'send_fds',
 ]
 
-# FIXME: correctly handle byte / str for encode / decode
-# VarChar = Union[bytes, str]
+# Template bytes / str so input / output types match
+T = TypeVar('T', bytes, str)
+
+# Handle when bytes / str concrete types
+VarText = Union[bytes, str]
 
 LINE_LENGTH = 1002  # 1000 + [CR,]LF
 ENCODE_PATTERN = '(' + '|'.join(['%', '\r', '\n']) + ')'
-ENCODE_STR_REGEXP = re.compile(ENCODE_PATTERN)
-ENCODE_BYTE_REGEXP = re.compile(ENCODE_PATTERN.encode('utf-8'))
-DECODE_STR_REGEXP = re.compile('(%[0-9A-Fa-f]{2})')
-DECODE_BYTE_REGEXP = re.compile(b'(%[0-9A-Fa-f]{2})')
 REQUEST_REGEXP = re.compile(r'^(\w+)( *)(.*)\Z')
 
 
-def encode(data: str) -> str:
-    r"""Encode data.
-
-    .. doctest::
-
-        >>> encode('It grew by 5%!\n')
-        'It grew by 5%25!%0A'
-        >>> encode(b'It grew by 5%!\n')
-        b'It grew by 5%25!%0A'
-    """
+def _encode(data: T) -> T:
     if isinstance(data, bytes):
-        regexp = ENCODE_BYTE_REGEXP
+        regexp = re.compile(ENCODE_PATTERN.encode('utf-8'))
     else:
-        regexp = ENCODE_STR_REGEXP
-    return regexp.sub(lambda x: to_hex(x.group()), data)
+        regexp = re.compile(ENCODE_PATTERN)
+    return regexp.sub(lambda x: _to_hex(x.group()), data)
 
 
-def decode(data: str) -> str:
-    r"""Decode data.
-
-    .. doctest::
-
-        >>> decode('%22Look out!%22%0AWhere%3F')
-        '"Look out!"\nWhere?'
-        >>> decode(b'%22Look out!%22%0AWhere%3F')
-        b'"Look out!"\nWhere?'
-    """
+def _decode(data: T) -> T:
     if isinstance(data, bytes):
-        regexp = DECODE_BYTE_REGEXP
+        regexp = re.compile(b'(%[0-9A-Fa-f]{2})')
     else:
-        regexp = DECODE_STR_REGEXP
-    return regexp.sub(lambda x: from_hex(x.group()), data)
+        regexp = re.compile('(%[0-9A-Fa-f]{2})')
+    return regexp.sub(lambda x: _from_hex(x.group()), data)
 
 
-def from_hex(code: str) -> str:
-    r"""Convert hex to char.
-
-    .. doctest::
-
-        >>> from_hex('%22')
-        '"'
-        >>> from_hex('%0A')
-        '\n'
-        >>> from_hex(b'%0A')
-        b'\n'
-    """
-    c = chr(int(code[1:], 16))
+def _from_hex(code: T) -> T:
     if isinstance(code, bytes):
-        c = c.encode('utf-8')
+        c = chr(int(code[1:], 16)).encode('utf-8')
+    else:
+        c = chr(int(code[1:], 16))
     return c
 
 
-def to_hex(char: str) -> str:
-    r"""Convert char to hex.
-
-    .. doctest::
-
-        >>> to_hex('"')
-        '%22'
-        >>> to_hex('\n')
-        '%0A'
-        >>> to_hex(b'\n')
-        b'%0A'
-    """
-    hx = '%{:02X}'.format(ord(char))
+def _to_hex(char: T) -> T:
     if isinstance(char, bytes):
-        hx = hx.encode('utf-8')
+        hx = '%{:02X}'.format(ord(char)).encode('utf-8')
+    else:
+        hx = '%{:02X}'.format(ord(char))
     return hx
+
+
+def _to_str(data: VarText) -> str:
+    if isinstance(data, bytes):
+        result = data.decode()
+    else:
+        result = data
+    return result
+
+
+def _to_bytes(data: VarText) -> bytes:
+    if isinstance(data, str):
+        result = data.encode('utf-8')
+    else:
+        result = data
+    return result
 
 
 class Request:
@@ -160,7 +135,7 @@ class Request:
     def __init__(
         self,
         command: str = '',  # HACK: this is not designed correctly
-        parameters: Optional[str] = None,
+        parameters: Optional[VarText] = None,
         encoded: bool = False
     ) -> None:
         """Initialize a client request object."""
@@ -171,23 +146,25 @@ class Request:
     def __str__(self) -> str:
         """Provide string representation of request."""
         if self.parameters:
+            parameters = _to_str(self.parameters)
             if self.encoded:
-                encoded_parameters = self.parameters
+                encoded_parameters = parameters
             else:
-                encoded_parameters = encode(self.parameters)
+                encoded_parameters = _encode(parameters)
             return '{} {}'.format(self.command, encoded_parameters)
         return self.command
 
     def __bytes__(self) -> bytes:
         """Provide bytes representation of request."""
         if self.parameters:
+            parameters = _to_str(self.parameters)
             if self.encoded:
-                encoded_parameters = self.parameters
+                encoded_parameters = parameters
             else:
-                encoded_parameters = encode(self.parameters)
-            return '{} {}'.format(self.command, encoded_parameters).encode(
-                'utf-8'
-            )
+                encoded_parameters = _encode(parameters)
+            return (
+                '{} {}'.format(self.command, encoded_parameters)
+            ).encode('utf-8')
         return self.command.encode('utf-8')
 
     def from_bytes(self, line: bytes) -> None:
@@ -203,7 +180,7 @@ class Request:
         self.command = match.group(1)
         if match.group(3):
             if match.group(2):
-                self.parameters = decode(match.group(3))
+                self.parameters = _decode(match.group(3))
             else:
                 raise AssuanError(message='Invalid request')
         else:
@@ -257,7 +234,7 @@ class Response:
     def __init__(
         self,
         message: str = '',  # HACK: this is not designed correctly
-        parameters: Optional[str] = None,
+        parameters: Optional[VarText] = None,
     ) -> None:
         """Inititialize a server response."""
         self.message = message
@@ -266,17 +243,20 @@ class Response:
     def __str__(self) -> str:
         """Provide string representation."""
         if self.parameters:
-            return '{} {}'.format(self.message, encode(self.parameters))
+            params = _to_str(self.parameters)
+            return '{} {}'.format(self.message, _encode(params))
         return self.message
 
     def __bytes__(self) -> bytes:
         """Provide bytes representation."""
         if self.parameters:
             if self.message == 'D':
-                return b' '.join((b'D', self.parameters.encode()))
+                dparams = _to_bytes(self.parameters)
+                return b' '.join((b'D', dparams))
             else:
+                sparams = _to_str(self.parameters)
                 return '{} {}'.format(
-                    self.message, encode(self.parameters)
+                    self.message, _encode(sparams)
                 ).encode('utf-8')
         return self.message.encode('utf-8')
 
@@ -298,16 +278,16 @@ class Response:
 
         self.message = message
         if message == 'D':  # data
-            self.parameters = decode(string[2:])
+            self.parameters = _decode(string[2:])
         elif message == '#':  # comment
-            self.parameters = decode(string[2:])
+            self.parameters = _decode(string[2:])
         else:
             match = REQUEST_REGEXP.match(string)
             if not match:
                 raise AssuanError(message='Invalid request')
             if match.group(3):
                 if match.group(2):
-                    self.parameters = decode(match.group(3))
+                    self.parameters = _decode(match.group(3))
                 else:
                     raise AssuanError(message='Invalid request')
             else:

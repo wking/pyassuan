@@ -78,7 +78,7 @@ class AssuanServer:
         self.reset()
 
     def reset(self) -> None:
-        """Reset pyassuan server."""
+        """Reset the connection but not any existing authentication."""
         self.stop = False
         self.options.clear()
 
@@ -133,9 +133,9 @@ class AssuanServer:
                 except AssuanError as e:
                     self.__send_error_response(e)
                     continue
-                self.__handle_request(request)
+                self._handle_request(request)
 
-    def __handle_request(self, request: 'Request') -> None:
+    def _handle_request(self, request: 'Request') -> None:
         try:
             handle = getattr(self, '_handle_{}'.format(
                 request.command.lower())
