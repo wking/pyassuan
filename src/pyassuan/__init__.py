@@ -21,7 +21,12 @@
 
 import logging
 
-__version__ = '0.2'
+__author__ = 'Jesse P. Johnson'
+__author_email__ = 'jpj6652@gmail.com'
+__title__ = 'pyassuan'
+__description__ = 'A Python implementation of the `Assuan protocol.'
+__version__ = '0.2.1b1'
+__license__ = 'GPL-3.0'
 
 LOG = logging.getLogger('pyassuan')
 LOG.setLevel(logging.ERROR)
