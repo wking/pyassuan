@@ -25,7 +25,7 @@ from typing import (
     TYPE_CHECKING, Any, BinaryIO, Dict, Generator, List, Optional
 )
 
-from . import LOG, common
+from pyassuan import LOG, common
 from pyassuan.common import Request, Response
 from pyassuan.error import AssuanError
 
@@ -181,7 +181,7 @@ class AssuanServer:
 
     def __send_error_response(self, error: AssuanError) -> None:
         """For internal use by ``._handle_requests()``."""
-        self.__send_response(common.errorresponse(error))
+        self.__send_response(common.error_response(error))
 
     # common commands defined at
     # http://www.gnupg.org/documentation/manuals/assuan/Client-requests.html

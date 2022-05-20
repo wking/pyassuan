@@ -38,6 +38,7 @@ test = [
     "nose2[coverage_plugin]>=0.11.0,<1",
 ]
 doc = [
+    "doc8>=0.11.2,<1",
     "docstr-coverage>=1.2.0,<2",
     "pydocstyle[toml]>=6.1.1,<7"
 ]

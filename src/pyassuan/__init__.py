@@ -20,6 +20,12 @@
 """
 
 import logging
+from typing import List
+
+from pyassuan.client import AssuanClient
+from pyassuan.error import AssuanError
+from pyassuan.common import Request, Response, error_response
+from pyassuan.server import AssuanServer, AssuanSocketServer
 
 __author__ = 'Jesse P. Johnson'
 __author_email__ = 'jpj6652@gmail.com'
@@ -27,6 +33,15 @@ __title__ = 'pyassuan'
 __description__ = 'A Python implementation of the `Assuan protocol.'
 __version__ = '0.2.1b1'
 __license__ = 'GPL-3.0'
+__all__: List[str] = [
+    'AssuanClient',
+    'AssuanError',
+    'AssuanServer',
+    'AssuanSocketServer',
+    'Request',
+    'Response',
+    'error_response',
+]
 
 LOG = logging.getLogger('pyassuan')
 LOG.setLevel(logging.ERROR)

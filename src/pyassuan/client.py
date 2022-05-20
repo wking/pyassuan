@@ -149,10 +149,10 @@ class AssuanClient:
     ) -> Tuple[List['Response'], Optional[bytes]]:
         """Get responses."""
         responses = list(self.responses)
-        if responses[-1].message == 'ERR':
-            eresponse = responses[-1]
-            if eresponse.parameters:
-                fields = eresponse.parameters.split(' ', 1)
+        if responses != [] and responses[-1].message == 'ERR':
+            err_response = responses[-1]
+            if err_response.parameters:
+                fields = common._to_str(err_response.parameters).split(' ', 1)
                 code = int(fields[0])
             else:
                 fields = []
@@ -169,11 +169,13 @@ class AssuanClient:
         if expect:
             # XXX: should be if/else/fail
             assert responses[-1].message in expect, [str(r) for r in responses]
-        rsp = []
+        rsps = []
         for response in responses:
             if response.message == 'D':
-                rsp.append(response.parameters)
-        data = b''.join(rsp) if rsp != [] else None
+                if response.parameters:
+                    rsps.append(common._to_bytes(response.parameters))
+        print(rsps)
+        data = b''.join(rsps) if rsps != [] else None
         return (responses, data)
 
     @property
@@ -197,7 +199,7 @@ class AssuanClient:
         """
         requests = []
         if data:
-            encoded_data = common.encode(data)
+            encoded_data = common._encode(data)
             start = 0
             stop = min(
                 common.LINE_LENGTH - 4, len(encoded_data)
@@ -229,9 +231,9 @@ class AssuanClient:
     def __send_fds(self, fds: List[int]) -> int:
         """Send file descriptors over a Unix socket."""
         if self.socket:
-            msg = '# descriptors in flight: {}\n'.format(fds)
-            self.logger.info('C: {}'.format(msg.rstrip('\n')))
-            msg = msg.encode('utf-8')
+            _msg = '# descriptors in flight: {}\n'.format(fds)
+            self.logger.info('C: {}'.format(_msg.rstrip('\n')))
+            msg = _msg.encode('utf-8')
             return common.send_fds(
                 socket=self.socket, msg=msg, fds=fds, logger=None
             )

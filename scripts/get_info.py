@@ -18,9 +18,7 @@
 
 """Simple pinentry program for getting server info."""
 
-from pyassuan import __version__, client
-from pyassuan.common import Request
-from pyassuan.error import AssuanError
+from pyassuan import AssuanClient, AssuanError, Request, __version__
 
 if __name__ == '__main__':
     import argparse
@@ -40,7 +38,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    client = client.AssuanClient(name='get-info', close_on_disconnect=True)
+    client = AssuanClient(name='get_info', close_on_disconnect=True)
 
     if args.verbose:
         client.logger.setLevel(
@@ -57,7 +55,7 @@ if __name__ == '__main__':
             try:
                 client.make_request(Request('GETINFO', attribute))
             except AssuanError as err:
-                if err.message.startswith('No data'):
+                if err.message.startswith('No data'):  # type: ignore
                     pass
                 else:
                     raise

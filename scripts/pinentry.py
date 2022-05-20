@@ -20,18 +20,20 @@
 
 import copy
 import os
-import pprint
+
+# import pprint
 import re
 import signal
 import sys
 import termios
 from typing import Any, Dict, Generator
 
-from pyassuan import __version__, error, server
+from pyassuan import __version__, error
 from pyassuan.common import Response
+from pyassuan.server import AssuanServer
 
 
-class PinEntry(server.AssuanServer):
+class PinEntry(AssuanServer):
     """Represent a pinentry protocol server.
 
     See ``pinentry-0.8.0/doc/pinentry.texi`` at::
@@ -125,18 +127,16 @@ class PinEntry(server.AssuanServer):
 
     def _connect(self) -> None:
         self.logger.info('connecting to user')
-        self.logger.debug('options:{}{}'.format(
-            os.linesep, pprint.pformat(self.options))
-        )
+        self.logger.debug(f"options:\n{self.options}")
         tty_name = self.options.get('ttyname', None)
         if tty_name:
             self.connection['tpgrp'] = self._get_pgrp(tty_name)
             self.logger.info(
-                'open to-user output stream for {}'.format(tty_name)
+                f"open to-user output stream for {tty_name}"
             )
             self.connection['to_user'] = open(tty_name, 'w')
             self.logger.info(
-                'open from-user input stream for {}'.format(tty_name)
+                f"open from-user input stream for {tty_name}"
             )
             self.connection['from_user'] = open(tty_name, 'r')
             self.logger.info('get current termios line discipline')
@@ -205,30 +205,31 @@ class PinEntry(server.AssuanServer):
             self.logger.info('disconnected from user')
 
     def _get_pgrp(self, tty_name: str) -> int:
-        self.logger.info('find process group contolling {}'.format(tty_name))
+        self.logger.info(f"find process group contolling {tty_name}")
         proc = '/proc'
         for name in os.listdir(proc):
             path = os.path.join(proc, name)
             if not (self._digitregexp.match(name) and os.path.isdir(path)):
                 continue  # not a process directory
-            self.logger.debug('checking process {}'.format(name))
+            self.logger.debug(f"checking process {name}")
             fd_path = os.path.join(path, 'fd', '0')
             try:
                 link = os.readlink(fd_path)
             except OSError as e:
-                self.logger.debug('not our process: {}'.format(e))
+                self.logger.debug(f"not our process: {e}")
                 continue  # permission denied (not one of our processes)
             if link != tty_name:
-                self.logger.debug('wrong tty: {}'.format(link))
+                self.logger.debug(f"wrong tty: {link}")
                 continue  # not attached to our target tty
             stat_path = os.path.join(path, 'stat')
             stat = open(stat_path, 'r').read()
-            self.logger.debug('check stat for pgrp: {}'.format(stat))
+            self.logger.debug(f"check stat for pgrp: {stat}")
             match = self._tpgrpregexp.match(stat)
-            assert match != (None, stat)
-            pgrp = int(match.group(1))
-            self.logger.info('found pgrp {} for {}'.format(pgrp, tty_name))
-            return pgrp
+            if match is not None:
+                pgrp = int(match.group(1))
+                self.logger.info(f"found pgrp {pgrp} for {tty_name}")
+                return pgrp
+            raise
         raise ValueError(tty_name)
 
     def _write(self, string: str) -> None:
@@ -256,53 +257,53 @@ class PinEntry(server.AssuanServer):
 
     # assuan handlers
 
-    def _handle_GETINFO(self, arg: str) -> Generator['Response', None, None]:
+    def _handle_getinfo(self, arg: str) -> Generator['Response', None, None]:
         if arg == 'pid':
-            yield Response('D', str(os.getpid()).encode('ascii'))
+            yield Response('D', str(os.getpid()).encode('utf-8'))
         elif arg == 'version':
-            yield Response('D', __version__.encode('ascii'))
+            yield Response('D', __version__.encode('utf-8'))
         else:
             raise error.AssuanError(message='Invalid parameter')
         yield Response('OK')
 
-    def _handle_SETKEYINFO(self, arg: str):
+    def _handle_setkeyinfo(self, arg: str):
         self.strings['key info'] = arg
         yield Response('OK')
 
-    def _handle_CLEARPASSPHRASE(
+    def _handle_clearpassphrase(
         self, arg: str
     ) -> Generator[Response, None, None]:
         yield Response('OK')
 
-    def _handle_SETDESC(self, arg: str) -> Generator[Response, None, None]:
+    def _handle_setdesc(self, arg: str) -> Generator[Response, None, None]:
         self.strings['description'] = arg
         yield Response('OK')
 
-    def _handle_SETPROMPT(self, arg: str) -> Generator[Response, None, None]:
+    def _handle_setprompt(self, arg: str) -> Generator[Response, None, None]:
         self.strings['prompt'] = arg
         yield Response('OK')
 
-    def _handle_SETERROR(self, arg: str) -> Generator[Response, None, None]:
+    def _handle_seterror(self, arg: str) -> Generator[Response, None, None]:
         self.strings['error'] = arg
         yield Response('OK')
 
-    def _handle_SETTITLE(self, arg: str) -> Generator[Response, None, None]:
+    def _handle_settitle(self, arg: str) -> Generator[Response, None, None]:
         self.strings['title'] = arg
         yield Response('OK')
 
-    def _handle_SETOK(self, arg: str) -> Generator[Response, None, None]:
+    def _handle_setok(self, arg: str) -> Generator[Response, None, None]:
         self.strings['ok'] = arg
         yield Response('OK')
 
-    def _handle_SETCANCEL(self, arg: str) -> Generator[Response, None, None]:
+    def _handle_setcancel(self, arg: str) -> Generator[Response, None, None]:
         self.strings['cancel'] = arg
         yield Response('OK')
 
-    def _handle_SETNOTOK(self, arg: str) -> Generator[Response, None, None]:
+    def _handle_setnotok(self, arg: str) -> Generator[Response, None, None]:
         self.strings['not ok'] = arg
         yield Response('OK')
 
-    def _handle_SETQUALITYBAR(
+    def _handle_setqualitybar(
         self, arg: str
     ) -> Generator[Response, None, None]:
         """Add a quality indicator to the GETPIN window.
@@ -331,19 +332,20 @@ class PinEntry(server.AssuanServer):
 
             C: SETQUALITYBAR Quality%3a
             S: OK
-            C: SETQUALITYBAR_TT The quality of the text entered above.%0aPlease ask your administrator for details about the criteria.
+            C: SETQUALITYBAR_TT The quality of the text entered above.%0a\
+            Please ask your administrator for details about the criteria.
             S: OK
         """
         self.strings['qualitybar'] = arg
         yield Response('OK')
 
-    def _handle_SETQUALITYBAR_TT(
+    def _handle_setqualitybar_tt(
         self, arg: str
     ) -> Generator[Response, None, None]:
         self.strings['qualitybar_tooltip'] = arg
         yield Response('OK')
 
-    def _handle_GETPIN(self, arg: str) -> Generator[Response, None, None]:
+    def _handle_getpin(self, arg: str) -> Generator[Response, None, None]:
         try:
             self._connect()
             self._write(self.strings['description'])
@@ -358,10 +360,10 @@ class PinEntry(server.AssuanServer):
             )
         finally:
             self._disconnect()
-        yield Response('D', pin.encode('ascii'))
+        yield Response('D', pin.encode('utf-8'))
         yield Response('OK')
 
-    def _handle_CONFIRM(self, arg: str) -> Generator[Response, None, None]:
+    def _handle_confirm(self, arg: str) -> Generator[Response, None, None]:
         try:
             self._connect()
             self._write(self.strings['description'])
@@ -374,11 +376,11 @@ class PinEntry(server.AssuanServer):
             yield Response('OK')
         raise error.AssuanError(message='Not confirmed')
 
-    def _handle_MESSAGE(self, arg: str) -> Generator[Response, None, None]:
+    def _handle_message(self, arg: str) -> Generator[Response, None, None]:
         self._write(self.strings['description'])
         yield Response('OK')
 
-    # def _handle_CONFIRM(self, args):
+    # def _handle_confirm(self, args):
     #     assert args == '--one-button', args
     #     try:
     #         self._connect()
@@ -401,7 +403,7 @@ if __name__ == '__main__':
         '-v',
         '--version',
         action='version',
-        version='%(prog)s {}'.format(__version__),
+        version=f"%(prog)s {__version__}",
     )
     parser.add_argument(
         '-V', '--verbose', action='count', default=0, help='increase verbosity'
@@ -423,8 +425,6 @@ if __name__ == '__main__':
         p.run()
     except Exception:
         p.logger.error(
-            'exiting due to exception:{}{}'.format(
-                os.linesep, traceback.format_exc().rstrip()
-            )
+            f"exiting due to exception:\n{traceback.format_exc().rstrip()}"
         )
         raise

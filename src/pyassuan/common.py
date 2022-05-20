@@ -34,6 +34,11 @@ __all__: List[str] = [
     'LINE_LENGTH',
     'Request',
     'Response',
+    '_encode',
+    '_decode',
+    '_to_str',
+    '_to_bytes',
+    'error_response',
     'receive_fds',
     'send_fds',
 ]
@@ -67,10 +72,10 @@ def _decode(data: T) -> T:
 
 def _from_hex(code: T) -> T:
     if isinstance(code, bytes):
-        c = chr(int(code[1:], 16)).encode('utf-8')
+        char = chr(int(code[1:], 16)).encode('utf-8')
     else:
-        c = chr(int(code[1:], 16))
-    return c
+        char = chr(int(code[1:], 16))
+    return char
 
 
 def _to_hex(char: T) -> T:
@@ -82,19 +87,11 @@ def _to_hex(char: T) -> T:
 
 
 def _to_str(data: VarText) -> str:
-    if isinstance(data, bytes):
-        result = data.decode()
-    else:
-        result = data
-    return result
+    return data.decode() if isinstance(data, bytes) else data
 
 
 def _to_bytes(data: VarText) -> bytes:
-    if isinstance(data, str):
-        result = data.encode('utf-8')
-    else:
-        result = data
-    return result
+    return data.encode('utf-8') if isinstance(data, str) else data
 
 
 class Request:
@@ -151,7 +148,7 @@ class Request:
                 encoded_parameters = parameters
             else:
                 encoded_parameters = _encode(parameters)
-            return '{} {}'.format(self.command, encoded_parameters)
+            return f"{self.command} {encoded_parameters}"
         return self.command
 
     def __bytes__(self) -> bytes:
@@ -162,9 +159,7 @@ class Request:
                 encoded_parameters = parameters
             else:
                 encoded_parameters = _encode(parameters)
-            return (
-                '{} {}'.format(self.command, encoded_parameters)
-            ).encode('utf-8')
+            return f"{self.command} {encoded_parameters}".encode('utf-8')
         return self.command.encode('utf-8')
 
     def from_bytes(self, line: bytes) -> None:
@@ -244,7 +239,7 @@ class Response:
         """Provide string representation."""
         if self.parameters:
             params = _to_str(self.parameters)
-            return '{} {}'.format(self.message, _encode(params))
+            return f"{self.message} {_encode(params)}"
         return self.message
 
     def __bytes__(self) -> bytes:
@@ -255,9 +250,7 @@ class Response:
                 return b' '.join((b'D', dparams))
             else:
                 sparams = _to_str(self.parameters)
-                return '{} {}'.format(
-                    self.message, _encode(sparams)
-                ).encode('utf-8')
+                return f"{self.message} {_encode(sparams)}".encode('utf-8')
         return self.message.encode('utf-8')
 
     def from_bytes(self, line: bytes) -> None:
@@ -294,14 +287,14 @@ class Response:
                 self.parameters = None
 
 
-def errorresponse(error: AssuanError) -> 'Response':
+def error_response(error: AssuanError) -> 'Response':
     """Provide error response.
 
     .. doctest::
 
         >>> from pyassuan.error import AssuanError
         >>> error = AssuanError(1)
-        >>> response = errorresponse(error)
+        >>> response = error_response(error)
         >>> print(response)
         ERR 1 General error
     """
@@ -330,7 +323,7 @@ def send_fds(
         )
 
     if logger is not None:
-        logger.debug('sending file descriptors {} down {}'.format(fds, socket))
+        logger.debug(f"sending file descriptors {fds} down {socket}")
 
     arr = array('i', fds) if fds else array('i')
     return socket.sendmsg(
@@ -369,8 +362,6 @@ def receive_fds(
             )
     if logger is not None:
         logger.debug(
-            'receiving file descriptors {} from {} ({!r})'.format(
-                fds, socket, msg
-            )
+            f"receiving file descriptors {fds} from {socket} ({msg!r})"
         )
     return (msg, list(fds))

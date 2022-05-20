@@ -16,24 +16,29 @@
 # type: ignore
 
 import doctest
-# import unittest
 
 from pyassuan import common
+
+# import unittest
+
 
 # NOTE: moved doctests here as users should rarely need to access theses
 
 
-def load_tests(loader, tests, ignore):
+def load_doctests(loader, tests, ignore):
+    """Run doctests."""
     tests.addTests(doctest.DocTestSuite(common))
     return tests
 
 
 def test_encode():
+    """Test encode of special characters."""
     assert common._encode('It grew by 5%!\n') == 'It grew by 5%25!%0A'
     assert common._encode(b'It grew by 5%!\n') == b'It grew by 5%25!%0A'
 
 
 def test_decode():
+    """Test decode of special characters."""
     assert (
         common._decode('%22Look out!%22%0AWhere%3F') == '"Look out!"\nWhere?'
     )
@@ -43,22 +48,26 @@ def test_decode():
 
 
 def test_from_hex():
+    """Test hex to string conversion."""
     assert common._from_hex('%22') == '"'
     assert common._from_hex('%0A') == '\n'
     assert common._from_hex(b'%0A') == b'\n'
 
 
 def test_to_hex():
+    """Test string to hex conversion."""
     assert common._to_hex('"') == '%22'
     assert common._to_hex('\n') == '%0A'
     assert common._to_hex(b'\n') == b'%0A'
 
 
 def test_to_str():
+    """Test string conversion from bytes."""
     assert isinstance(common._to_str(b'A byte string'), str)
     assert isinstance(common._to_str('A string'), str)
 
 
 def test_to_bytes():
+    """Test byte conversion to string."""
     assert isinstance(common._to_bytes(b'A byte string'), bytes)
     assert isinstance(common._to_bytes('A string'), bytes)
